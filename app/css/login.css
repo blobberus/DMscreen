@@ -1,0 +1,41 @@
+/* DM Screen — the gate. The Pleiades in gold leaf over night basalt. */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--ground); color: var(--text);
+  font: 400 var(--fs-body) / 1.45 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.gate { min-height: 100%; display: grid; place-items: center; padding: 24px; }
+.gate-card {
+  width: min(380px, 100%);
+  display: flex; flex-direction: column; gap: 16px;
+  padding: 36px 32px 28px;
+  background: var(--pane); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.gate-mark { width: 96px; height: auto; margin: 0 auto 4px; }
+.gate-title { margin: 0; text-align: center; font: 600 28px / 1.1 var(--font-display); letter-spacing: 0.06em; }
+.gate-sub { margin: -8px 0 8px; text-align: center; color: var(--muted); }
+.gate-field { display: flex; flex-direction: column; gap: 6px; font-weight: 500; font-size: 14px; }
+.gate-field input {
+  height: 40px; padding: 0 12px; font: inherit; font-size: 16px; color: var(--text);
+  background: var(--raised); border: 1px solid var(--control); border-radius: var(--radius-sm);
+}
+.gate-field input:focus { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
+.gate-check { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); cursor: pointer; user-select: none; }
+.gate-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--text); }
+.gate-enter {
+  height: 40px; margin-top: 4px; font: 500 16px / 1 var(--font-ui);
+  color: var(--pane); background: var(--text); border: 1px solid var(--text); border-radius: var(--radius-sm); cursor: pointer;
+  transition: background-color 120ms var(--ease), transform 60ms var(--ease);
+}
+.gate-enter:hover { background: var(--muted); border-color: var(--muted); }
+.gate-enter:active { transform: translateY(1px); }
+.gate-enter[aria-busy="true"] { opacity: 0.7; cursor: progress; }
+.gate-error { margin: 0; color: var(--danger); text-align: center; }
+.gate-card.is-shaking { animation: shake 260ms var(--ease); }
+@keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+@media (prefers-reduced-motion: reduce) { .gate-card.is-shaking { animation: none; } }

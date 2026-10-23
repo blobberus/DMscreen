@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 6 48 34" fill="#d2a54a">
+  <!-- The Pleiades as they stand in Taurus (east to the left), star size by brightness:
+       Alcyone, Atlas, Pleione, Electra, Maia, Merope, Taygeta. -->
+  <circle cx="19.4" cy="28.3" r="3.6"/>
+  <circle cx="5.6" cy="30.1" r="2.9"/>
+  <circle cx="5.2" cy="25.6" r="1.6"/>
+  <circle cx="42.4" cy="27.6" r="2.8"/>
+  <circle cx="34.3" cy="18.1" r="2.6"/>
+  <circle cx="29.5" cy="35.6" r="2.3"/>
+  <circle cx="40.2" cy="12.9" r="2.2"/>
+</svg>

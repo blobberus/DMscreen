@@ -1,0 +1,141 @@
+// Playlists: music for a scene plus the ambience that goes with it, on a number key (Alt+1 to 9).
+import { state } from '../core/state.js';
+import { bus } from '../core/bus.js';
+import { uid } from '../core/util.js';
+import { library } from '../core/library.js';
+import { engine } from './engine.js';
+import { SITE } from '../core/mode.js';
+import { folderName } from '../core/site.js';
+
+export const REPEAT = { off: 'Play through once', all: 'Repeat the playlist', one: 'Repeat the track' };
+
+export const playlists = {
+  list: () => state.get('playlists').list,
+  get: (id) => state.get('playlists').list.find((p) => p.id === id) || null,
+  byKey: (n) => state.get('playlists').list.find((p) => p.key === n) || null,
+  freeKey() {
+    const used = new Set(this.list().map((p) => p.key).filter(Boolean));
+    for (let n = 1; n <= 9; n++) if (!used.has(n)) return n;
+    return null;
+  },
+  create(name = 'New playlist') {
+    const pl = { id: uid('pl'), name, key: this.freeKey(), tracks: [], ambience: [], shuffle: false, repeat: 'all', crossfade: state.get('settings').crossfade };
+    state.update('playlists', (d) => { d.list.push(pl); });
+    return pl;
+  },
+  update(id, patch) {
+    state.update('playlists', (d) => {
+      const pl = d.list.find((p) => p.id === id);
+      if (!pl) return;
+      if (patch.key) for (const other of d.list) if (other.id !== id && other.key === patch.key) other.key = null;
+      Object.assign(pl, patch);
+    });
+  },
+  remove(id) {
+    if (engine.music.playlistId === id) engine.music.playlistId = null;
+    state.update('playlists', (d) => { d.list = d.list.filter((p) => p.id !== id); });
+  },
+  move(id, toIndex) {
+    state.update('playlists', (d) => {
+      const i = d.list.findIndex((p) => p.id === id);
+      if (i < 0) return;
+      const [pl] = d.list.splice(i, 1);
+      d.list.splice(Math.max(0, Math.min(toIndex, d.list.length)), 0, pl);
+    });
+  },
+  addTracks(id, ids, at = null) {
+    state.update('playlists', (d) => {
+      const pl = d.list.find((p) => p.id === id);
+      if (!pl) return;
+      const fresh = ids.filter((x) => library.has(x));
+      if (at == null) pl.tracks.push(...fresh); else pl.tracks.splice(at, 0, ...fresh);
+    });
+  },
+  addAmbience(id, ids) {
+    state.update('playlists', (d) => {
+      const pl = d.list.find((p) => p.id === id);
+      if (!pl) return;
+      for (const sid of ids) if (!pl.ambience.some((a) => a.id === sid)) pl.ambience.push({ id: sid, volume: 0.8 });
+    });
+  },
+  duration(pl) {
+    return pl.tracks.reduce((sum, id) => {
+      const s = library.get(id);
+      if (!s) return sum;
+      const [a, b] = library.region(s);
+      return sum + (b - a);
+    }, 0);
+  },
+  /**
+   * Website: one playlist per folder in sounds/Music, its tracks the files in it (in file-name order).
+   * Ambience in the folder of the same name in sounds/Ambience joins it once; take a layer off and it
+   * stays off. Number keys go to the playlists in folder order until you change them.
+   */
+  reconcile() {
+    if (!SITE) return;
+    const before = JSON.stringify(state.get('playlists'));
+    const sounds = library.list();
+    const d = structuredClone(state.get('playlists'));
+    const byDir = new Map(d.list.filter((p) => p.dir).map((p) => [p.dir, p]));
+    d.list = library.groups('music').map((dir) => {
+      const pl = byDir.get(dir) || { id: dir, dir, ambience: [], seenAmbience: [], shuffle: false, repeat: 'all', crossfade: state.get('settings').crossfade };
+      const name = folderName(dir);
+      pl.id = dir;
+      pl.name = name;
+      pl.tracks = sounds.filter((s) => s.group === dir).map((s) => s.id);
+      pl.ambience = (pl.ambience || []).filter((a) => library.has(a.id));
+      pl.seenAmbience = (pl.seenAmbience || []).filter((id) => library.has(id));
+      for (const s of sounds) {
+        if (s.kind !== 'ambience' || !s.group.includes('/') || folderName(s.group).toLowerCase() !== name.toLowerCase() || pl.seenAmbience.includes(s.id)) continue;
+        pl.ambience.push({ id: s.id, volume: 0.8 });
+        pl.seenAmbience.push(s.id);
+      }
+      return pl;
+    });
+    const used = new Set(d.list.map((p) => p.key).filter(Boolean));
+    for (const pl of d.list) {
+      if (pl.key !== undefined) continue;     // null means "no key", chosen on purpose
+      let n = 1;
+      while (n <= 9 && used.has(n)) n++;
+      pl.key = n <= 9 ? n : null;
+      if (pl.key) used.add(pl.key);
+    }
+    if (JSON.stringify(d) !== before) state.set('playlists', d);
+  },
+  play(id, opts) {
+    const pl = this.get(id);
+    if (!pl) return;
+    if (!pl.tracks.length && !pl.ambience.length) {
+      bus.emit('toast', { message: `“${pl.name}” is empty. Add music or ambience in the Playlists pane.` });
+      return;
+    }
+    engine.playPlaylist(pl, opts);
+    bus.emit('playlist:started', pl);
+  },
+};
+
+export function startPlaylistKey(n) {
+  const pl = playlists.byKey(n);
+  if (!pl) {
+    bus.emit('toast', { message: `No playlist is on key ${n} yet. Give one a key in the Playlists pane.` });
+    return;
+  }
+  if (engine.music.playlistId === pl.id && engine.playing) {
+    bus.emit('toast', { message: `“${pl.name}” is already playing.` });
+    return;
+  }
+  playlists.play(pl.id);
+}
+
+bus.on('library', () => playlists.reconcile());
+bus.on('site:docs', () => playlists.reconcile());
+
+// Forget deleted sounds.
+bus.on('library:removed', (id) => {
+  state.update('playlists', (d) => {
+    for (const pl of d.list) {
+      pl.tracks = pl.tracks.filter((t) => t !== id);
+      pl.ambience = pl.ambience.filter((a) => a.id !== id);
+    }
+  });
+});

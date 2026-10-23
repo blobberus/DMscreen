@@ -1,0 +1,5 @@
+flask>=3.0
+waitress>=3.0
+yt-dlp[default]
+imageio-ffmpeg>=0.5
+deno>=2.0

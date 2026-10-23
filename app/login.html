@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>DM Screen</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="fonts/AlegreyaSans-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/Cinzel-600.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/login.css">
+  <script>try { const t = localStorage.getItem('dm:theme'); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
+  <script type="module" src="js/login.js"></script>
+</head>
+<body>
+  <main class="gate">
+    <form class="gate-card" id="gate" autocomplete="on" novalidate>
+      <img class="gate-mark" src="img/mark.svg" alt="" width="96" height="68">
+      <h1 class="gate-title">DM Screen</h1>
+      <p class="gate-sub">Sound, notes and reference for the table.</p>
+      <input type="text" name="username" value="dungeon-master" autocomplete="username" hidden>
+      <label class="gate-field">
+        <span>Password</span>
+        <input id="pass" name="password" type="password" autocomplete="current-password" required autofocus>
+      </label>
+      <label class="gate-check"><input id="remember" type="checkbox" checked> <span>Keep me signed in on this device</span></label>
+      <button class="gate-enter" type="submit">Enter</button>
+      <p class="gate-error" id="error" role="alert" hidden></p>
+    </form>
+  </main>
+</body>
+</html>

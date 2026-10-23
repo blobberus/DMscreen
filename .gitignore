@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Your library, settings and sign-in cookies stay on this machine
+data/
+
+# Session notes stay private unless you choose to commit them
+vault/
+
+# Tool output
+.taste-skill/
+*.tmp
+# website build (tools/build_site.py)
+_site/
+.site-cache/

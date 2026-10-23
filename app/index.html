@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-app="dm-screen">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#15130f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="DM Screen">
+  <title>DM Screen</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="img/icon-180.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preload" href="fonts/AlegreyaSans-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/AlegreyaSans-500.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/shell.css">
+  <link rel="stylesheet" href="css/panels.css">
+  <script>try { const t = localStorage.getItem('dm:theme'); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
+  <script>try { if (document.querySelector('meta[name="dm-mode"]')?.content === 'site' && !(localStorage.getItem('dm:pass') || sessionStorage.getItem('dm:pass'))) location.replace('login.html'); } catch {}</script>
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <div class="app" id="app">
+    <nav class="rail" aria-label="Panels">
+      <div class="rail-mark" title="DM Screen"><img src="img/mark.svg" alt="" width="36" height="26"></div>
+      <div class="rail-group" id="rail-kinds"></div>
+      <div class="rail-spacer"></div>
+      <div class="rail-group" id="rail-utils"></div>
+    </nav>
+
+    <header class="top" id="top">
+      <h1 class="wordmark top-title">DM Screen</h1>
+      <div class="deck" id="deck"></div>
+      <div class="top-right" id="top-right"></div>
+    </header>
+
+    <main class="workspace" id="workspace" aria-label="Panes"></main>
+  </div>
+
+  <div id="focus-sink" tabindex="-1" aria-hidden="true"></div>
+  <div id="overlays"></div>
+  <noscript><p style="padding:24px">The DM Screen needs JavaScript.</p></noscript>
+</body>
+</html>

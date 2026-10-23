@@ -1,0 +1,143 @@
+/* =============================================================================
+   DM Screen — design tokens
+   The Stone Wardens codex (iron-gall ink, oxblood rubric, lapis, gold leaf) set
+   as a data terminal for four-hour sessions at a dim table:
+   - "Night basalt" is the default. Panes sit darker than the ground around them.
+   - The rubric is the one selection mark: a 1px line as wide as its label.
+   - Colour otherwise lives only on live data: what is playing, how far along.
+   - Gold leaf is for the Pleiades mark and nothing else.
+   "Day vellum" ([data-theme="light"]) is for prep in daylight.
+   Text pairs reach 4.5:1 on --ground, --pane and --raised.
+   ============================================================================= */
+
+@font-face { font-family: "Alegreya Sans"; src: url("../fonts/AlegreyaSans-400.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url("../fonts/AlegreyaSans-400i.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url("../fonts/AlegreyaSans-500.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url("../fonts/AlegreyaSans-700.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Cinzel"; src: url("../fonts/Cinzel-600.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
+
+:root, [data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Ground and surfaces: night basalt, warm neutral darks (never navy or slate) */
+  --ground: #15130f;        /* rail, top bar, the gutters between panes */
+  --pane: #0f0d0a;          /* pane bodies: a step darker than the ground */
+  --raised: #1e1b16;        /* controls, pads, inputs, rows on hover */
+  --raised-2: #27231d;      /* hover on raised things */
+  --raised-3: #312c24;      /* pressed; the selected row in a list */
+
+  /* Lines */
+  --border: #2b271f;        /* pane edges */
+  --rule: #211e18;          /* row rules inside a pane */
+  --control: #4a4337;       /* control outlines: inputs, empty pads */
+  --control-hover: #6a604f;
+
+  /* Ink */
+  --text: #ebe3d3;          /* vellum by candlelight */
+  --muted: #b2a792;         /* secondary text, labels */
+  --faint: #958a77;         /* meta, placeholders (4.6:1 on --raised) */
+
+  /* Pigments */
+  --accent: #e06a62;        /* rubric under lamplight: selection line, live data */
+  --accent-ink: #1d0f0c;
+  --accent-soft: #3b211d;
+  --link: #8fb6de;          /* lapis: wikilinks, tags */
+  --gold: #d2a54a;          /* gold leaf: the Pleiades mark only */
+  --focus: #8fb6de;
+
+  --ok: #86c49a;     --ok-soft: #1d3326;
+  --warn: #e2b25a;   --warn-soft: #3b2f15;
+  --danger: #f0857f; --danger-soft: #3d1f1b;
+
+  /* Pad edges: the codex's muted manuscript pigments, a 3px mark only */
+  --pig-rubric: #e06a62;
+  --pig-vermilion: #e8875e;
+  --pig-orpiment: #e8ad5a;
+  --pig-ochre: #d9bb63;
+  --pig-malachite: #7ec4a3;
+  --pig-verdigris: #7cc0b9;
+  --pig-lapis: #8db3dc;
+  --pig-murrey: #d4a0c8;
+  --pig-umber: #bcae98;
+
+  /* Only what floats gets a shadow */
+  --overlay: rgb(0 0 0 / 0.6);
+  --shadow-float: 0 2px 6px rgb(0 0 0 / 0.35), 0 12px 32px rgb(0 0 0 / 0.5);
+  --wave: #6d6455;          /* unplayed waveform */
+  --wave-dim: #3a352c;      /* outside the trim */
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --ground: #e9e2d3;
+  --pane: #f6f2e9;
+  --raised: #eee8dc;
+  --raised-2: #e5ddcd;
+  --raised-3: #ddd4c1;
+  --border: #d5cab5;
+  --rule: #e2d9c7;
+  --control: #8f826b;
+  --control-hover: #6b6154;
+  --text: #1f1a14;
+  --muted: #554c40;
+  --faint: #6b6154;
+  --accent: #8e1b1b;
+  --accent-ink: #fbf7ef;
+  --accent-soft: #f2e0d9;
+  --link: #22507c;
+  --gold: #9c7419;
+  --focus: #2b5f93;
+  --ok: #2d6a43;     --ok-soft: #dcebdc;
+  --warn: #855a05;   --warn-soft: #f3e6c4;
+  --danger: #b0261d; --danger-soft: #f6dcd6;
+  --pig-rubric: #8e1b1b;
+  --pig-vermilion: #a8321c;
+  --pig-orpiment: #925510;
+  --pig-ochre: #82600f;
+  --pig-malachite: #2f6e55;
+  --pig-verdigris: #23675f;
+  --pig-lapis: #22507c;
+  --pig-murrey: #6e3a5c;
+  --pig-umber: #5c4a36;
+  --overlay: rgb(31 24 14 / 0.45);
+  --shadow-float: 0 1px 2px rgb(40 30 15 / 0.1), 0 10px 28px rgb(40 30 15 / 0.2);
+  --wave: #a89c86;
+  --wave-dim: #d8cfbd;
+}
+
+:root {
+  /* Type: one grotesk for everything; Cinzel is the wordmark only */
+  --font-ui: "Alegreya Sans", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Cinzel", "Trajan Pro", "Times New Roman", serif;
+  --fs-meta: 13px;
+  --fs-body: 15px;
+  --fs-title: 17px;
+  --fs-lead: 22px;
+
+  /* Space on a 4px base; one gutter between panes */
+  --gap: 6px;
+  --pad: 12px;
+  --pad-lg: 16px;
+
+  /* Shape: tight */
+  --radius: 6px;
+  --radius-sm: 4px;
+
+  /* Sizes */
+  --rail-w: 56px;
+  --top-h: 46px;
+  --tab-h: 36px;
+  --control-h: 32px;
+  --control-h-sm: 28px;
+  --row-h: 40px;
+
+  --z-panels: 10;
+  --z-splitter: 20;
+  --z-drag: 30;
+  --z-menu: 1000;
+  --z-dialog: 1100;
+  --z-toast: 1200;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur: 120ms;
+}

@@ -1,0 +1,213 @@
+/* =============================================================================
+   DM Screen — shell: icon rail, top bar with the deck, the workspace grid,
+   panes, tabs, splitters and the floating panel layer.
+   ============================================================================= */
+
+.app {
+  display: grid;
+  grid-template-columns: var(--rail-w) minmax(0, 1fr);
+  grid-template-rows: var(--top-h) minmax(0, 1fr);
+  grid-template-areas: "rail top" "rail work";
+  height: 100dvh;
+}
+#focus-sink { position: fixed; width: 1px; height: 1px; left: -10px; top: -10px; }
+
+/* ---------- Rail ------------------------------------------------------------- */
+.rail {
+  grid-area: rail;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 10px 0 10px;
+  background: var(--ground);
+  border-right: 1px solid var(--border);
+  overflow: hidden auto;
+  scrollbar-width: none;
+}
+.rail-mark { display: grid; place-items: center; width: 44px; height: 34px; margin-bottom: 10px; }
+.rail-mark img { width: 34px; height: auto; }
+.rail-group { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.rail-group + .rail-group { margin-top: 8px; }
+.rail-spacer { flex: 1 1 auto; min-height: 16px; }
+.rail-btn {
+  position: relative; display: grid; place-items: center; width: 40px; height: 40px;
+  color: var(--muted); background: transparent; border: 0; border-radius: var(--radius);
+  transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease), transform 60ms var(--ease);
+}
+.rail-btn:hover { color: var(--text); background: var(--raised); }
+.rail-btn:active { transform: translateY(1px); }
+.rail-btn .icon { width: 20px; height: 20px; }
+/* Shown in a pane: the label brightens and a 1px rubric line sits on the rail's edge */
+.rail-btn.is-shown { color: var(--text); }
+.rail-btn.is-shown::after { content: ""; position: absolute; right: -8px; top: 11px; bottom: 11px; width: 1px; background: var(--accent); }
+.rail-sep { width: 20px; height: 1px; margin: 6px 0; background: var(--border); }
+
+/* ---------- Top bar ------------------------------------------------------------ */
+.top {
+  grid-area: top;
+  display: flex; align-items: center; gap: 16px;
+  min-width: 0; padding: 0 12px 0 16px;
+  background: var(--ground);
+  border-bottom: 1px solid var(--border);
+}
+.top-title { flex: none; font-size: 17px; }
+.top-right { display: flex; align-items: center; gap: 6px; flex: none; margin-left: auto; }
+
+.deck { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 auto; max-width: 720px; }
+.deck-buttons { display: flex; align-items: center; gap: 2px; flex: none; }
+.deck-play { color: var(--text); }
+.deck-info { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; align-items: baseline; min-width: 0; flex: 1 1 auto; }
+.deck-title { min-width: 0; font-weight: 500; }
+.deck-title .deck-pl { color: var(--muted); font-weight: 400; }
+.deck-time { color: var(--muted); font-size: var(--fs-meta); }
+.deck-bar { grid-column: 1 / -1; position: relative; height: 3px; margin-top: 4px; border-radius: 2px; background: var(--raised-3); cursor: pointer; }
+.deck-bar::before { content: ""; position: absolute; inset: -6px 0; }
+.deck-bar > i { position: absolute; inset: 0 auto 0 0; width: var(--p, 0%); background: var(--accent); border-radius: 2px; }
+.deck-bar > b { position: absolute; top: -2px; width: 1px; height: 7px; background: var(--muted); }
+.deck-idle { color: var(--faint); }
+
+.top-btn { gap: 6px; }
+.top-btn .kbd { display: none; }
+.top-level { display: flex; align-items: center; gap: 6px; width: 150px; padding: 0 6px; }
+.top-level .range { flex: 1; }
+.top-level .num { width: 24px; text-align: right; color: var(--muted); font-size: var(--fs-meta); }
+.keys-status {
+  display: inline-flex; align-items: center; gap: 7px; height: var(--control-h); padding: 0 10px; flex: none;
+  font: 500 14px / 1 var(--font-ui); color: var(--muted); background: transparent; border: 0; border-radius: var(--radius-sm);
+  max-width: 260px;
+}
+.keys-status:hover { background: var(--raised); color: var(--text); }
+.keys-status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
+.keys-status.is-paused { color: var(--warn); }
+.keys-status.is-paused .dot { background: var(--warn); }
+.keys-status.is-fired { color: var(--text); }
+.keys-status.is-fired .dot { background: var(--accent); }
+.audio-asleep { color: var(--warn); }
+
+@media (min-width: 1500px) {
+  .top-btn .kbd { display: inline-flex; }
+}
+
+/* ---------- Workspace ---------------------------------------------------------- */
+.workspace { grid-area: work; position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--ground); }
+.ws-grid {
+  position: absolute; inset: 0;
+  display: grid; gap: var(--gap); padding: var(--gap);
+}
+.ws-layer { position: absolute; inset: 0; pointer-events: none; z-index: var(--z-panels); }
+.ws-splitters { position: absolute; inset: 0; pointer-events: none; z-index: var(--z-splitter); }
+
+.pane {
+  display: grid; grid-template-rows: var(--tab-h) minmax(0, 1fr);
+  min-width: 0; min-height: 0;
+  background: var(--pane);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  overflow: hidden; position: relative;
+  transition: border-color 200ms var(--ease);
+}
+.pane.is-focused { border-color: color-mix(in srgb, var(--control) 70%, var(--border)); }
+.pane.is-flash { animation: pane-flash 700ms var(--ease); }
+@keyframes pane-flash { 0% { border-color: var(--accent); } 100% { border-color: var(--border); } }
+.pane-head {
+  display: flex; align-items: stretch; gap: 2px; min-width: 0;
+  padding: 0 4px 0 2px;
+  background: var(--ground);
+  border-bottom: 1px solid var(--border);
+}
+.pane-head > .btn-icon { align-self: center; }
+.pane-tabs { display: flex; align-items: stretch; gap: 0; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.pane-tabs::-webkit-scrollbar { display: none; }
+.pane-tab {
+  position: relative; display: inline-flex; align-items: center; gap: 7px; flex: 0 1 auto; min-width: 0; max-width: 220px;
+  padding: 0 11px; margin-bottom: -1px;
+  font: 500 14px / 1 var(--font-ui); color: var(--muted); background: transparent; border: 0; white-space: nowrap;
+  transition: color var(--dur) var(--ease);
+}
+.pane-tab:hover { color: var(--text); }
+.pane-tab[aria-selected="true"] { color: var(--text); }
+.pane-tab[aria-selected="true"]::after { content: ""; position: absolute; left: 11px; right: 11px; bottom: 0; height: 1px; background: var(--accent); }
+.pane-tab .icon { color: var(--faint); }
+.pane-tab[aria-selected="true"] .icon { color: var(--muted); }
+.pane-tab[draggable="true"] { cursor: grab; }
+.pane-spacer { flex: 1 1 auto; min-width: 8px; }
+.pane-body { position: relative; min-height: 0; overflow: auto; }
+.pane-add { opacity: 0.85; }
+.is-locked .pane-add { display: none; }
+
+.pane-empty { padding: 18px; display: flex; flex-direction: column; gap: 12px; color: var(--muted); }
+.pane-empty-list { display: flex; flex-direction: column; }
+.pane-empty-item {
+  display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 10px; text-align: left;
+  color: var(--text); background: transparent; border: 0; border-bottom: 1px solid var(--rule); border-radius: 0;
+}
+.pane-empty-item:hover { background: var(--raised); }
+.pane-empty-item .icon { color: var(--muted); }
+.pane-empty-item strong { font-weight: 500; }
+
+/* Dropping a tab onto a pane */
+.pane-drop {
+  position: absolute; inset: var(--tab-h) 0 0 0; z-index: var(--z-drag);
+  display: none; place-items: center;
+  background: color-mix(in srgb, var(--pane) 82%, transparent);
+  border: 1px dashed var(--control); border-radius: 0 0 var(--radius) var(--radius);
+  color: var(--muted); font-weight: 500;
+}
+.pane-drop.is-over { border-color: var(--accent); color: var(--text); }
+.is-dragging-panel .pane-drop { display: grid; }
+.is-dragging-panel .ws-layer { pointer-events: none; }
+.is-dragging-panel .ws-layer .panel { pointer-events: none; }
+/* the drop zones must sit above the floating panels while a tab is dragged */
+.is-dragging-panel .ws-grid { z-index: calc(var(--z-panels) + 1); }
+
+/* ---------- Floating panels ------------------------------------------------------ */
+.panel { position: absolute; pointer-events: auto; overflow: hidden; }
+.panel-inner { position: absolute; inset: 0; overflow: hidden; display: flex; flex-direction: column; container-type: size; }
+.panel-loading { display: grid; place-items: center; flex: 1; }
+.is-resizing .panel iframe, .is-dragging-panel .panel iframe { pointer-events: none; }
+.is-resizing-col, .is-resizing-col * { cursor: col-resize !important; }
+.is-resizing-row, .is-resizing-row * { cursor: row-resize !important; }
+.is-resizing-both, .is-resizing-both * { cursor: move !important; }
+.is-resizing { user-select: none; }
+
+/* ---------- Splitters ---------------------------------------------------------- */
+.splitter { position: absolute; pointer-events: auto; }
+.splitter { touch-action: none; }
+/* fingers need a wider line to catch than a mouse does */
+@media (pointer: coarse) {
+  .splitter { box-sizing: content-box; }
+  .splitter.is-v { padding: 0 9px; margin-left: -9px; }
+  .splitter.is-h { padding: 9px 0; margin-top: -9px; }
+  .splitter.is-x { padding: 9px; margin: -9px 0 0 -9px; }
+}
+.splitter.is-v { cursor: col-resize; }
+.splitter.is-h { cursor: row-resize; }
+.splitter.is-x { width: 18px; height: 18px; cursor: move; z-index: 1; }
+.splitter::after { content: ""; position: absolute; background: transparent; transition: background-color var(--dur) var(--ease); }
+.splitter.is-v::after { left: 50%; top: 8px; bottom: 8px; width: 2px; margin-left: -1px; border-radius: 1px; }
+.splitter.is-h::after { top: 50%; left: 8px; right: 8px; height: 2px; margin-top: -1px; border-radius: 1px; }
+.splitter.is-x::after { inset: 5px; border-radius: 50%; }
+.splitter:hover::after { background: var(--control-hover); }
+.splitter.is-active::after { background: var(--accent); }
+
+/* ---------- Compact (narrow windows): one pane; the rail picks what it shows ---------- */
+.workspace.is-compact .pane-tab:not([aria-selected="true"]) { display: none; }
+.workspace.is-compact .pane-tab { max-width: none; }
+.workspace.is-compact .pane-add, .workspace.is-compact .pane-max { display: none; }
+@media (max-width: 760px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) 56px; grid-template-areas: "top" "work" "rail"; }
+  .rail { flex-direction: row; justify-content: space-around; padding: 0 4px; border-right: 0; border-top: 1px solid var(--border); overflow-x: auto; }
+  .rail-mark, .rail-spacer, #rail-utils { display: none; }
+  .rail-group { flex-direction: row; gap: 0; }
+  .rail-btn { width: 44px; height: 44px; }
+  .rail-btn.is-shown::after { right: 11px; left: 11px; top: -6px; bottom: auto; width: auto; height: 1px; }
+  .top { flex-wrap: wrap; gap: 6px 10px; padding: 8px 16px; }
+  .top-title { font-size: 16px; }
+  .deck { order: 3; flex-basis: 100%; max-width: none; padding-right: 4px; }
+  .top-level, .top-btn .label, .keys-status .label { display: none; }
+}
+@media (max-width: 1180px) {
+  .top-btn .label { display: none; }
+  .top-level { width: 110px; }
+}
+
+/* Layout menu glyphs */
+.preset-glyph { width: 26px; height: 18px; margin-left: auto; flex: none; fill: var(--raised-3); stroke: var(--control); stroke-width: 0.8; }
+.menu-item.is-checked .preset-glyph { fill: var(--muted); }

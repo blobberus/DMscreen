@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "DM Screen frame helper",
+  "version": "1.1.0",
+  "description": "Lets the DM Screen show sites like 5e.tools inside its panes, on this computer or on its website. It only changes frames inside the DM Screen's own tab.",
+  "permissions": [
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost/*",
+        "http://127.0.0.1/*",
+        "https://blobberus.github.io/DMscreen/*"
+      ],
+      "js": [
+        "mark.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+# Sounds and fonts are bytes: never touch their line endings.
+* text=auto
+*.bat text eol=crlf
+*.mp3 binary
+*.m4a binary
+*.aac binary
+*.wav binary
+*.ogg binary
+*.oga binary
+*.opus binary
+*.flac binary
+*.webm binary
+*.woff2 binary
+*.png binary
