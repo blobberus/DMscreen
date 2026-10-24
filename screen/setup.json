@@ -61,7 +61,7 @@
     "id": "Ambience/Caves & Dungeons",
     "dir": "Ambience/Caves & Dungeons",
     "shuffle": false,
-    "repeat": "all",
+    "repeat": "one",
     "crossfade": 3,
     "name": "Caves & Dungeons",
     "kind": "ambience",
