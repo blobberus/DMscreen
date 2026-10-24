@@ -97,6 +97,22 @@ def mark_pages(out: Path, marks: dict):
 # Relative module imports: `from './x.js'`, `import './x.js'`, `import('./x.js')`.
 IMPORT_RE = re.compile(r"""(\b(?:from|import)\s*\(?\s*)(['"])(\.{1,2}/[^'"?#]+?\.js)\2""")
 PAGE_RE = re.compile(r'((?:src|href)=")((?:js|css)/[^"?#]+\.(?:js|css))"')
+# Static imports only (`from './x.js'`, `import './x.js'`): what a module needs before it can run.
+STATIC_RE = re.compile(r"""(?:\bfrom\s*|\bimport\s+)(['"])(\.{1,2}/[^'"?#]+?\.js)\1""")
+
+
+def static_graph(out: Path, entry: str) -> list:
+    """Every module the entry needs at start-up, as paths under out, in the order they were found."""
+    seen, todo = [], [entry]
+    while todo:
+        rel = todo.pop(0)
+        if rel in seen or not (out / rel).exists():
+            continue
+        seen.append(rel)
+        base = (out / rel).parent
+        for m in STATIC_RE.finditer((out / rel).read_text('utf-8')):
+            todo.append((base / m.group(2)).resolve().relative_to(out.resolve()).as_posix())
+    return seen
 
 
 def stamp_version(out: Path):
@@ -109,6 +125,12 @@ def stamp_version(out: Path):
         h.update(p.relative_to(out).as_posix().encode())
         h.update(p.read_bytes())
     q = f'?v={h.hexdigest()[:10]}'
+    # The page names every start-up module (modulepreload), so the browser fetches them all at once
+    # instead of finding them one import after another: over the internet each step costs a round trip.
+    index = out / 'index.html'
+    if index.exists():
+        links = ''.join(f'  <link rel="modulepreload" href="{rel}{q}">\n' for rel in static_graph(out, 'js/main.js')[1:])
+        index.write_text(index.read_text('utf-8').replace('  <script type="module" src="js/main.js"', links + '  <script type="module" src="js/main.js"', 1), 'utf-8')
     sw = out / 'sw.js'
     if sw.exists():                           # the worker keeps its address; a new BUILD makes browsers install it
         sw.write_text(sw.read_text('utf-8').replace("const BUILD = 'dev';", f"const BUILD = '{q[3:]}';"), 'utf-8')

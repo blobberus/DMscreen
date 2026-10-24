@@ -1,7 +1,7 @@
 // Console: the screen's answer to "what is playing, and what can I fire next?"
 // Now playing with its flag strip (click a flag or press Alt+Shift+1..9), the transport, a list of
 // everything playing (the track, sounds on top, long pads), each with its own scrub bar, low-pass switch
-// and stop, the low-pass sweep, the playlist keys, and the mixer with a strip for every sound on top.
+// and stop, the low-pass sweep, the playlist keys, and the mixer with a fader for every sound playing.
 import { h, icon, clear, setIcon } from '../core/dom.js';
 import { bus } from '../core/bus.js';
 import { keys } from '../core/keys.js';
@@ -113,14 +113,31 @@ export default function createConsole({ el }) {
       if (peaksFor === s.id) { peaks = p; cache.key = null; drawWave(); }
     } catch { /* drawn flat */ }
   }
+  // The waveform's size is measured when it changes (ResizeObserver), not every frame, and it is
+  // redrawn only when the played part reaches the next bar; the playhead glides as a transform.
+  let waveW = 0;
+  let waveH = 0;
+  let lastCol = -1;
+  let lastX = -1;
+  new ResizeObserver(() => {
+    waveW = canvas.clientWidth;
+    waveH = canvas.clientHeight;
+    cache.key = null;
+    drawWave();
+  }).observe(canvas);
   function drawWave() {
     const v = engine.music.voice;
-    if (!v || !canvas.isConnected || canvas.clientWidth === 0) return;
-    const { w, h: hh } = drawBars(canvas, peaks, { t0: v.from, t1: v.to, played: v.from + v.position, step: 3, gap: 1, cache, colors });
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = colors.played;
-    for (const f of engine.flags()) ctx.fillRect(Math.round(timeToX(f.t, v.from, v.to, w)), 0, 1, hh);
-    playhead.style.left = `${(v.progress * 100).toFixed(2)}%`;
+    if (!v || !canvas.isConnected || waveW === 0) return;
+    const col = Math.floor((v.progress * waveW) / 3);
+    if (col !== lastCol || !cache.key) {
+      lastCol = col;
+      const { w, h: hh } = drawBars(canvas, peaks, { t0: v.from, t1: v.to, played: v.from + v.position, step: 3, gap: 1, cache, colors, size: [waveW, waveH] });
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = colors.played;
+      for (const f of engine.flags()) ctx.fillRect(Math.round(timeToX(f.t, v.from, v.to, w)), 0, 1, hh);
+    }
+    const x = Math.round(v.progress * waveW);
+    if (x !== lastX) { lastX = x; playhead.style.transform = `translateX(${x}px)`; }
   }
   function placeFlags() {
     clear(flagLayer);
@@ -197,6 +214,7 @@ export default function createConsole({ el }) {
     const key = `${s.id}|${v.from}|${v.to}|${JSON.stringify(s.flags || [])}`;
     if (key !== flagsKey) {
       flagsKey = key;
+      lastFlag = -2;
       renderFlagList();
       placeFlags();
       cache.key = null;
@@ -217,17 +235,23 @@ export default function createConsole({ el }) {
         h('span', { class: 'time faint' }, fmtTime(f.t))));
     });
   }
+  let lastPos = '';
+  let lastFlag = -2;
   function tick() {
     tickPlaying();
     const v = engine.music.voice;
     if (!v) return;
-    pos.textContent = fmtTime(v.position);
+    const p = fmtTime(v.position);
+    if (p !== lastPos) { lastPos = p; pos.textContent = p; }
     drawWave();
     const now = v.from + v.position;
     const flags = engine.flags();
     let current = -1;
     flags.forEach((f, i) => { if (f.t <= now + 0.05) current = i; });
-    [...flagList.querySelectorAll('.cn-flagbtn')].forEach((b, i) => b.classList.toggle('is-current', i === current));
+    if (current !== lastFlag) {
+      lastFlag = current;
+      [...flagList.querySelectorAll('.cn-flagbtn')].forEach((b, i) => b.classList.toggle('is-current', i === current));
+    }
   }
   // ---- everything playing ------------------------------------------------------------
   // A row per sound, each with a scrub bar: click or drag it (or use the arrow keys) to move that sound.
@@ -268,8 +292,10 @@ export default function createConsole({ el }) {
     tickPlaying();
   }
   function tickPlaying() {
-    for (const { v, time, bar } of playingRows) {
-      time.textContent = v.repeat === 0 ? `${fmtTime(v.position)} · loops` : `${fmtTime(v.position)} / ${fmtTime(v.length)}`;
+    for (const row of playingRows) {
+      const { v, time, bar } = row;
+      const t = v.repeat === 0 ? `${fmtTime(v.position)} · loops` : `${fmtTime(v.position)} / ${fmtTime(v.length)}`;
+      if (t !== row.t) { row.t = t; time.textContent = t; }
       bar.sync();
     }
   }
@@ -279,8 +305,15 @@ export default function createConsole({ el }) {
     const fill = h('i');
     const el = h('div', { class: 'cn-pbar', role: 'slider', tabindex: 0, 'aria-label': `Position in ${v.sound.name}`, 'aria-valuemin': 0 }, fill);
     let dragging = false;
+    let shown = -1;
     const at = (e) => { const r = el.getBoundingClientRect(); return clamp((e.clientX - r.left) / r.width, 0, 1) * v.length; };
-    const show = (pos) => { fill.style.width = `${v.length > 0 ? (pos / v.length) * 100 : 0}%`; el.setAttribute('aria-valuenow', Math.round(pos)); };
+    const show = (pos) => {
+      const f = v.length > 0 ? Math.round((pos / v.length) * 1000) / 1000 : 0;
+      if (f === shown) return;
+      shown = f;
+      fill.style.transform = `scaleX(${f})`;
+      el.setAttribute('aria-valuenow', Math.round(pos));
+    };
     el.addEventListener('pointerdown', (e) => {
       dragging = true;
       try { el.setPointerCapture(e.pointerId); } catch { /* no capture: the drag still works over the bar */ }
@@ -303,7 +336,11 @@ export default function createConsole({ el }) {
     return { el, sync: () => { if (!dragging) show(v.position); } };
   }
 
+  let plKey = '';
   function renderPlaylists() {
+    const key = `${engine.music.playlistId}|${engine.music.voice ? 1 : 0}|${playlists.list().map((p) => `${p.id}:${p.name}:${p.key}:${p.kind || ''}`).join(',')}`;
+    if (key === plKey) return;
+    plKey = key;
     clear(ambRow);
     const amb = playlists.ofKind('ambience').sort((a, b) => (a.key || 99) - (b.key || 99));
     if (!amb.length) ambRow.append(h('p', { class: 'meta' }, 'No ambience playlists yet. Make one in the Playlists pane.'));
@@ -354,8 +391,9 @@ export default function createConsole({ el }) {
 
   // ---- mixer strips ----------------------------------------------------------------
   const busFaders = {};
-  let layerKey = '';
   let mode = '';
+  let chanHost = null;
+  const chans = new Map();           // sound id -> {el, f, val}: a fader per sound playing
   // Wide: the mixer stands beside "now playing". Tall: below it, with upright faders.
   // Otherwise: a compact grid of level sliders, so a quarter of the screen shows everything.
   const pickMode = () => (root.clientWidth >= 1000 ? 'side' : root.clientHeight >= 660 ? 'stack' : 'compact');
@@ -364,25 +402,56 @@ export default function createConsole({ el }) {
     root.dataset.mode = mode;
     const vertical = mode !== 'compact';
     clear(strips);
-    const layers = [...engine.layers.entries()];
-    const layerStrips = layers.map(([id, l]) => {
-      const s = library.get(id);
-      const val = h('span', { class: 'cn-val num' }, Math.round(l.volume * 100));
-      const f = fader({ value: l.volume, vertical, label: `${s?.name || 'Layer'} level`, onInput: (v) => { engine.setLayerVolume(id, v); val.textContent = Math.round(v * 100); } });
-      return h('div', { class: 'cn-strip-ch is-layer' },
-        h('span', { class: 'cn-chname truncate', title: s?.name }, s?.name || 'Layer'),
-        f.el, val,
-        h('button', { class: 'btn-icon btn-sm', type: 'button', title: `Stop ${s?.name || 'this layer'}`, 'aria-label': `Stop ${s?.name || 'layer'}`, onclick: () => engine.stopLayer(id) }, icon('close')));
-    });
-    const none = h('p', { class: 'meta cn-nolayers' }, 'Nothing on top. A track’s layers button plays a sound over what is playing; its level shows here.');
+    chans.clear();
+    chanHost = h('div', { class: 'cn-layers' });
     if (!vertical) {
       strips.append(busStrip('music', 'Music', false, vertical), busStrip('ambience', 'Ambience', false, vertical),
-        busStrip('effects', 'Effects', false, vertical), busStrip('master', 'Master', true, vertical), ...layerStrips);
-      return;
+        busStrip('effects', 'Effects', false, vertical), busStrip('master', 'Master', true, vertical), chanHost);
+    } else {
+      for (const [name, label] of [['music', 'Music'], ['ambience', 'Ambience'], ['effects', 'Effects']]) strips.append(busStrip(name, label, false, vertical));
+      strips.append(chanHost, busStrip('master', 'Master', true, vertical));
     }
-    for (const [name, label] of [['music', 'Music'], ['ambience', 'Ambience'], ['effects', 'Effects']]) strips.append(busStrip(name, label, false, vertical));
-    strips.append(h('div', { class: 'cn-layers' }, layers.length ? layerStrips : none));
-    strips.append(busStrip('master', 'Master', true, vertical));
+    syncChannels();
+  }
+  // A fader for every sound that is playing (the track, sounds on top, pads), setting that sound's own
+  // volume from silent to 500%: the same setting as its Volume…, so it is kept with the sound. Strips
+  // are added and removed one by one, so a pad going off never interrupts a fader being dragged.
+  const MAXVOL = 5;
+  function syncChannels() {
+    if (!chanHost) return;
+    const vertical = mode !== 'compact';
+    const items = engine.playingNow();
+    const ids = new Set(items.map((it) => it.id));
+    for (const [id, c] of chans) if (!ids.has(id)) { c.el.remove(); chans.delete(id); }
+    for (const it of items) {
+      if (chans.has(it.id)) continue;
+      const s = library.get(it.id) || it.voice.sound;
+      const pct = (x) => `${Math.round(x * MAXVOL * 100)}%`;
+      const start = clamp((s.volume ?? 1) / MAXVOL, 0, 1);
+      const val = h('span', { class: 'cn-val num' }, pct(start));
+      const f = fader({ value: start, vertical, label: `${s.name} volume`, format: (x) => Math.round(x * MAXVOL * 100), onInput: (x) => { library.update(it.id, { volume: x * MAXVOL }); val.textContent = pct(x); } });
+      const stop = () => {
+        for (const p of engine.playingNow().filter((q) => q.id === it.id)) {
+          if (p.role === 'deck') engine.stopMusic(1); else if (p.role === 'top') engine.stopLayer(p.id); else engine.stopPadVoice(p.voice);
+        }
+      };
+      const el = h('div', { class: 'cn-strip-ch is-layer', title: `${s.name} (${it.where})` },
+        h('span', { class: 'cn-chname truncate' }, s.name),
+        f.el, val,
+        h('button', { class: 'btn-icon btn-sm', type: 'button', title: `Stop ${s.name}`, 'aria-label': `Stop ${s.name}`, onclick: stop }, icon('close')));
+      chans.set(it.id, { el, f, val });
+      chanHost.append(el);
+    }
+    let none = chanHost.querySelector('.cn-nolayers');
+    if (!chans.size && !none) chanHost.append(h('p', { class: 'meta cn-nolayers' }, 'Nothing is playing. Every sound that plays gets its own volume fader here.'));
+    else if (chans.size && none) none.remove();
+  }
+  // a volume changed elsewhere (Volume…, the editor): its fader follows
+  function followVolume(s) {
+    const c = chans.get(s.id);
+    if (!c) return;
+    c.f.value = clamp((s.volume ?? 1) / MAXVOL, 0, 1);
+    c.val.textContent = `${Math.round((s.volume ?? 1) * 100)}%`;
   }
   function busStrip(name, label, isMaster = false, vertical = true) {
     const val = h('span', { class: 'cn-val num' });
@@ -403,15 +472,12 @@ export default function createConsole({ el }) {
     duckBtn.setAttribute('aria-pressed', String(engine.ducked));
     duckBtn.classList.toggle('is-active', engine.ducked);
   }
-  function syncLayers() {
-    const key = [...engine.layers.keys()].join('|');
-    if (key !== layerKey) { layerKey = key; buildStrips(); }
-  }
 
   buildStrips();
   render();
   const offs = [
-    bus.on('audio', () => { render(); syncLayers(); }),
+    bus.on('audio', () => { render(); syncChannels(); }),
+    bus.on('library:sound', followVolume),
     bus.on('audio:tick', () => { if (!el.closest('.panel')?.hidden) tick(); }),
     bus.on('audio:levels', syncLevels),
     bus.on('audio:lowpass', syncLowpass),

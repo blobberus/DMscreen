@@ -29,7 +29,7 @@
 .cn-flag:hover { background: var(--raised); }
 .cn-wavebox { position: relative; height: 64px; }
 .cn-wave { width: 100%; height: 100%; cursor: pointer; }
-.cn-playhead { position: absolute; top: -4px; bottom: -4px; width: 1px; background: var(--text); pointer-events: none; }
+.cn-playhead { position: absolute; top: -4px; bottom: -4px; left: 0; width: 1px; background: var(--text); pointer-events: none; will-change: transform; }
 .cn-transport { display: flex; align-items: center; gap: 14px; min-width: 0; flex-wrap: wrap; }
 .cn-tbtns { display: flex; align-items: center; gap: 2px; flex: none; }
 .cn-tsep { width: 1px; height: 20px; margin: 0 6px; background: var(--border); }
@@ -88,7 +88,7 @@
 .cn-pbtns { grid-area: btns; display: flex; align-items: center; gap: 2px; }
 .cn-pbar { grid-area: bar; position: relative; height: 3px; margin: 4px 4px 0 0; border-radius: 2px; background: var(--raised-3); cursor: pointer; touch-action: none; }
 .cn-pbar::before { content: ""; position: absolute; inset: -8px 0; }
-.cn-pbar > i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--accent); border-radius: 2px; pointer-events: none; }
+.cn-pbar > i { position: absolute; inset: 0 auto 0 0; width: 100%; background: var(--accent); border-radius: 2px; pointer-events: none; transform: scaleX(0); transform-origin: 0 50%; }
 .cn-pbar:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
 .cn-pnone { padding: 8px 6px; }
 .cn-fxbank { align-self: center; padding: 0 2px 0 6px; }
@@ -116,6 +116,10 @@
 .fader.is-v .fader-track { left: 50%; top: 6px; bottom: 6px; width: 4px; margin-left: -2px; }
 .fader.is-h .fader-track { top: 50%; left: 6px; right: 6px; height: 4px; margin-top: -2px; }
 .fader-fill { position: absolute; background: var(--muted); border-radius: 2px; }
+/* a sound's own fader runs to 500%: a notch marks 100%, the file as it is */
+.cn-strip-ch.is-layer .fader-track::after { content: ""; position: absolute; background: var(--text); opacity: 0.55; pointer-events: none; }
+.cn-strip-ch.is-layer .fader.is-v .fader-track::after { left: -5px; right: -5px; bottom: 20%; height: 1px; }
+.cn-strip-ch.is-layer .fader.is-h .fader-track::after { top: -5px; bottom: -5px; left: 20%; width: 1px; }
 .fader.is-v .fader-fill { left: 0; right: 0; bottom: 0; }
 .fader.is-h .fader-fill { top: 0; bottom: 0; left: 0; }
 .fader-thumb { position: absolute; background: var(--text); border: 2px solid var(--pane); border-radius: 3px; }
@@ -141,8 +145,9 @@
 .cn[data-mode="compact"] .cn-strip-ch.is-layer { width: auto; }
 .cn[data-mode="compact"] .cn-strip-ch .fader { flex: 1; }
 .cn[data-mode="compact"] .cn-chname { width: 72px; flex: none; text-align: left; }
-.cn[data-mode="compact"] .cn-val { width: 26px; text-align: right; }
+.cn[data-mode="compact"] .cn-val { width: 40px; text-align: right; }
 .cn[data-mode="compact"] .cn-strip-ch.is-master { margin-left: 0; }
+.cn[data-mode="compact"] .cn-layers { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; padding: 6px 0 0; margin: 4px 0 0; border: 0; border-top: 1px solid var(--rule); overflow: visible; }
 .cn[data-mode="compact"] .cn-nolayers { grid-column: 1 / -1; padding: 4px 0 0; max-width: none; }
 @container (max-width: 560px) {
   .cn-head { flex-direction: column; align-items: flex-start; gap: 4px; }
@@ -186,7 +191,7 @@ button.pd-key:active, .pd-key.is-hit { transform: translateY(1px); }
 .pd-key.is-pad.is-empty:hover { border-color: var(--control-hover); background: var(--raised); }
 .pd-key.is-pad.is-empty .pd-cap { color: var(--muted); }
 .pd-key.is-over { border: 1px solid var(--accent); background: var(--raised-2); }
-.pd-progress { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: var(--accent); }
+.pd-progress { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--accent); transform: scaleX(0); transform-origin: 0 50%; }
 .pd-key.is-playing { border-color: var(--control-hover); background: var(--raised-2); }
 .pd-key.is-action { background: transparent; border-color: var(--rule); color: var(--muted); font-weight: 400; }
 .pd-key.is-action:hover { color: var(--text); }

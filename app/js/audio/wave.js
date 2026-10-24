@@ -11,11 +11,12 @@ export function themeColors() {
   };
 }
 
-/** Fit a canvas to its CSS box at device resolution. Returns {ctx, w, h} in CSS pixels. */
-export function fitCanvas(canvas) {
+/** Fit a canvas to its CSS box at device resolution. Returns {ctx, w, h} in CSS pixels. Pass the size
+ *  ([w, h]) when it is known, so drawing every frame doesn't make the page measure itself. */
+export function fitCanvas(canvas, size = null) {
   const dpr = window.devicePixelRatio || 1;
-  const w = Math.max(1, canvas.clientWidth);
-  const h = Math.max(1, canvas.clientHeight);
+  const w = Math.max(1, size ? size[0] : canvas.clientWidth);
+  const h = Math.max(1, size ? size[1] : canvas.clientHeight);
   if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
@@ -47,7 +48,7 @@ export function columns(peaks, t0, t1, cols, step = 1) {
  * gap, colors, cache} — pass the same `cache` object between frames to skip recomputing columns.
  */
 export function drawBars(canvas, peaks, opts) {
-  const { ctx, w, h } = fitCanvas(canvas);
+  const { ctx, w, h } = fitCanvas(canvas, opts.size);
   const c = opts.colors || themeColors();
   const step = opts.step || 2;
   const gap = opts.gap ?? (step >= 3 ? 1 : 0.5);

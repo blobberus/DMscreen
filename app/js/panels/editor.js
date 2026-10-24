@@ -492,10 +492,10 @@ export function createEditor({ onDeleted, onSelectSound } = {}) {
     clear(settings);
     if (!sound) return;
     const s = sound;
-    const vol = h('input', { class: 'range', type: 'range', min: 0, max: 300, step: 1, value: Math.round((s.volume ?? 1) * 100), 'aria-label': 'Volume' });
+    const vol = h('input', { class: 'range', type: 'range', min: 0, max: 500, step: 1, value: Math.round((s.volume ?? 1) * 100), 'aria-label': 'Volume' });
     const volNum = h('span', { class: 'num ed-num' });
-    const syncVol = () => { vol.style.setProperty('--fill', `${(vol.value / 300) * 100}%`); volNum.textContent = `${vol.value}%`; };
-    // up to 300%; the engine applies it to the sound wherever it is playing
+    const syncVol = () => { vol.style.setProperty('--fill', `${(vol.value / 500) * 100}%`); volNum.textContent = `${vol.value}%`; };
+    // up to 500%; the engine applies it to the sound wherever it is playing
     vol.addEventListener('input', () => { syncVol(); library.update(s.id, { volume: vol.value / 100 }); });
     syncVol();
     const rep = h('select', { class: 'select' }, REPEATS.map(([n, l]) => h('option', { value: String(n), selected: (s.repeat ?? 1) === n }, l)));

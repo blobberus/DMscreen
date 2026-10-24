@@ -66,7 +66,12 @@ tools/shrink_sounds.py  cuts long recordings to upload-sized MP3s (20 min from 3
   are layers, started only on purpose by a track's on-top button (startLayer/stopLayer/toggleLayer).
   The library hands out fresh sound objects on every reload, so the engine re-points playing voices on
   'library' and re-applies gain on 'library:sound' (a volume change missed playing sounds before). A
-  sound's volume (and a pad's) goes up to 3.0 (300%).
+  sound's volume (and a pad's) goes up to 5.0 (500%); the Console mixer has a fader per playing sound
+  (by sound id, added/removed one at a time so a drag survives a pad going off) setting sound.volume.
+- Performance: per-frame code ('audio:tick') writes to the DOM only when what it shows changes, moves
+  progress bars and the playhead with transforms, never reads layout (the waveform's size comes from a
+  ResizeObserver), and skips hidden panels. This took playback from ~800 layouts / 900 ms of work per
+  5 s to ~10 / 80 ms. The build adds modulepreload links for main.js's static imports.
   `playingNow()` lists deck + on top + every pad voice for the Console's Playing list (each row scrubs with
   `seekItem`). Every voice has its own low-pass BiquadFilter; `setLowpass(0..1)` sweeps the ones switched
   in (`lowpass.deck`, each layer's `lowpass`, `lowpass.pads`; `setFiltered`), previews never. Transport

@@ -140,7 +140,9 @@ each row; the track and sounds on top are in by default, pads only with **Pads t
 the party ducks behind a door or goes underwater; double-click it to open it again.
 
 **A sound's volume:** its **⋯** menu (or right-click in the Sound library) has **Volume…**, the level it
-plays at everywhere, from silent up to 300%; it changes what is already playing too. The Sound library's folders fold away: click a folder's heading, or **Collapse all**.
+plays at everywhere, from silent up to 500%; it changes what is already playing too. The Console's
+mixer has a fader for every sound that is playing (the track, sounds on top, pads) that sets the same
+thing; a notch marks 100%. The Sound library's folders fold away: click a folder's heading, or **Collapse all**.
 
 ### Previews in your headphones
 

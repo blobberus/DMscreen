@@ -197,12 +197,17 @@ export default function createPads({ el }) {
     return null;
   }
 
+  // every frame while sound plays: only the pads whose state changed are touched, and nothing while hidden
   function tick() {
+    if (el.closest('.panel')?.hidden) return;
     const bank = board.active();
-    for (const [key, { btn, progress }] of padEls) {
+    for (const [key, pad] of padEls) {
       const live = board.live(key, bank);
-      btn.classList.toggle('is-playing', live.playing);
-      progress.style.width = live.playing ? `${(live.progress * 100).toFixed(1)}%` : '0';
+      const p = live.playing ? Math.round(live.progress * 500) / 500 : -1;
+      if (pad.p === p) continue;
+      if ((pad.p >= 0) !== live.playing) pad.btn.classList.toggle('is-playing', live.playing);
+      pad.p = p;
+      pad.progress.style.transform = `scaleX(${Math.max(0, p)})`;
     }
   }
 
@@ -263,9 +268,9 @@ export default function createPads({ el }) {
         h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Stop'), endSel)));
       if (!flags.length) body.append(h('p', { class: 'field-hint' }, 'Add flags to this sound in the Sound library to start pads part-way through, or to cut one long recording into many pads.'));
 
-      const vol = h('input', { class: 'range', type: 'range', min: 0, max: 300, step: 1, value: Math.round((pad.volume ?? 1) * 100) });
+      const vol = h('input', { class: 'range', type: 'range', min: 0, max: 500, step: 1, value: Math.round((pad.volume ?? 1) * 100) });
       const volNum = h('span', { class: 'num pd-volnum' }, `${vol.value}%`);
-      const syncVol = () => { vol.style.setProperty('--fill', `${(vol.value / 300) * 100}%`); volNum.textContent = `${vol.value}%`; };
+      const syncVol = () => { vol.style.setProperty('--fill', `${(vol.value / 500) * 100}%`); volNum.textContent = `${vol.value}%`; };
       vol.addEventListener('input', () => { board.setPad(key, { volume: vol.value / 100 }); syncVol(); });
       syncVol();
       body.append(h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Pad volume'), h('div', { class: 'pd-volrow' }, vol, volNum)));

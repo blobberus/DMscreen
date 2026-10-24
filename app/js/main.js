@@ -83,11 +83,16 @@ function buildTop() {
     }
     tick();
   };
+  const fill = bar.querySelector('i');
+  let lastTime = '';
+  let lastP = -1;
   const tick = () => {
     const v = engine.music.voice;
     if (!v) return;
-    time.textContent = `${fmtTime(v.position)} / ${fmtTime(v.length)}`;
-    bar.style.setProperty('--p', `${(v.progress * 100).toFixed(2)}%`);
+    const t = `${fmtTime(v.position)} / ${fmtTime(v.length)}`;
+    if (t !== lastTime) { lastTime = t; time.textContent = t; }
+    const p = Math.round(v.progress * 1000) / 1000;
+    if (p !== lastP) { lastP = p; fill.style.transform = `scaleX(${p})`; }
   };
   bus.on('audio', render);
   bus.on('audio:tick', tick);
