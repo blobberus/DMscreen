@@ -33,12 +33,12 @@
     "shuffle": false,
     "repeat": "all",
     "crossfade": 3,
-    "name": "Combat",
+    "name": "Amb-Civilization",
     "key": 3
    },
    {
-    "id": "Music/04 Boss",
-    "dir": "Music/04 Boss",
+    "id": "Music/04 Amb-Tavern",
+    "dir": "Music/04 Amb-Tavern",
     "ambience": [],
     "seenAmbience": [],
     "shuffle": false,
