@@ -1,6 +1,10 @@
 {
  "version": 1,
- "sounds": {},
+ "sounds": {
+  "Ambience/Outdoors/Forest (CALM).mp3": {
+   "volume": 1.5
+  }
+ },
  "playlists": {
   "list": [
    {
