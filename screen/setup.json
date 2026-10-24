@@ -63,13 +63,6 @@
  "boards": {
   "banks": [
    {
-    "id": "Effects/Misc",
-    "dir": "Effects/Misc",
-    "pads": {},
-    "seen": [],
-    "name": "Combat"
-   },
-   {
     "id": "Effects/Creatures",
     "dir": "Effects/Creatures",
     "pads": {},
@@ -82,6 +75,13 @@
     "pads": {},
     "seen": [],
     "name": "Magic"
+   },
+   {
+    "id": "Effects/Misc",
+    "dir": "Effects/Misc",
+    "pads": {},
+    "seen": [],
+    "name": "Misc"
    },
    {
     "id": "Effects/World",
