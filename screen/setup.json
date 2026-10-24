@@ -6,47 +6,8 @@
    {
     "id": "Music/01 Tavern",
     "dir": "Music/01 Tavern",
-    "ambience": [
-     {
-      "id": "Ambience/Tavern/Crowded Tavern (MUSIC).mp3",
-      "volume": 0.8
-     },
-     {
-      "id": "Ambience/Tavern/Crowded Tavern (NO MUSIC).mp3",
-      "volume": 0.8
-     },
-     {
-      "id": "Ambience/Tavern/Generic Tavern (MUSIC).mp3",
-      "volume": 0.8
-     },
-     {
-      "id": "Ambience/Tavern/Inn Room.mp3",
-      "volume": 0.8
-     },
-     {
-      "id": "Ambience/Tavern/Quiet Tavern.mp3",
-      "volume": 0.8
-     },
-     {
-      "id": "Ambience/Tavern/Tavern (ROOM).mp3",
-      "volume": 0.8
-     },
-     {
-      "id": "Ambience/Tavern/Whimsy Tavern (MUSIC).mp3",
-      "volume": 0.8
-     }
-    ],
-    "seenAmbience": [
-     "Ambience/Tavern/Crowded Tavern (MUSIC).mp3",
-     "Ambience/Tavern/Crowded Tavern (NO MUSIC).mp3",
-     "Ambience/Tavern/Generic Tavern (MUSIC).mp3",
-     "Ambience/Tavern/Inn Room.mp3",
-     "Ambience/Tavern/Quiet Tavern.mp3",
-     "Ambience/Tavern/Tavern (ROOM).mp3",
-     "Ambience/Tavern/Whimsy Tavern (MUSIC).mp3"
-    ],
     "shuffle": false,
-    "repeat": "all",
+    "repeat": "off",
     "crossfade": 3,
     "name": "Tavern",
     "key": 1
@@ -54,8 +15,6 @@
    {
     "id": "Music/02 Calm Explore",
     "dir": "Music/02 Calm Explore",
-    "ambience": [],
-    "seenAmbience": [],
     "shuffle": false,
     "repeat": "all",
     "crossfade": 3,
@@ -65,8 +24,6 @@
    {
     "id": "Music/03 Combat",
     "dir": "Music/03 Combat",
-    "ambience": [],
-    "seenAmbience": [],
     "shuffle": false,
     "repeat": "all",
     "crossfade": 3,
@@ -76,8 +33,6 @@
    {
     "id": "Music/04 Memorable",
     "dir": "Music/04 Memorable",
-    "ambience": [],
-    "seenAmbience": [],
     "shuffle": false,
     "repeat": "all",
     "crossfade": 3,
@@ -87,8 +42,6 @@
    {
     "id": "Music/05 Custom",
     "dir": "Music/05 Custom",
-    "ambience": [],
-    "seenAmbience": [],
     "shuffle": false,
     "repeat": "all",
     "crossfade": 3,
@@ -98,13 +51,61 @@
    {
     "id": "Music/06 Suspense",
     "dir": "Music/06 Suspense",
-    "ambience": [],
-    "seenAmbience": [],
     "shuffle": false,
     "repeat": "all",
     "crossfade": 3,
     "name": "Suspense",
     "key": 6
+   },
+   {
+    "id": "Ambience/Caves & Dungeons",
+    "dir": "Ambience/Caves & Dungeons",
+    "shuffle": false,
+    "repeat": "all",
+    "crossfade": 3,
+    "name": "Caves & Dungeons",
+    "kind": "ambience",
+    "key": 7
+   },
+   {
+    "id": "Ambience/Outdoors",
+    "dir": "Ambience/Outdoors",
+    "shuffle": false,
+    "repeat": "all",
+    "crossfade": 3,
+    "name": "Outdoors",
+    "kind": "ambience",
+    "key": 8
+   },
+   {
+    "id": "Ambience/Tavern",
+    "dir": "Ambience/Tavern",
+    "shuffle": false,
+    "repeat": "all",
+    "crossfade": 3,
+    "name": "Tavern",
+    "kind": "ambience",
+    "key": 9
+   },
+   {
+    "id": "Ambience/Towns & Cities",
+    "dir": "Ambience/Towns & Cities",
+    "shuffle": false,
+    "repeat": "all",
+    "crossfade": 3,
+    "name": "Towns & Cities",
+    "kind": "ambience",
+    "key": null
+   },
+   {
+    "id": "Ambience/Weather",
+    "dir": "Ambience/Weather",
+    "shuffle": false,
+    "repeat": "all",
+    "crossfade": 3,
+    "name": "Weather",
+    "kind": "ambience",
+    "key": null
    }
   ]
  },
