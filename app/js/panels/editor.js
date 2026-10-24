@@ -6,7 +6,7 @@
 // GitHub (dialogs/files.js); there is no clip cutting there.
 import { h, icon, clear, setIcon } from '../core/dom.js';
 import { bus } from '../core/bus.js';
-import { library, KIND_LABEL } from '../core/library.js';
+import { library, KIND_LABEL, MAX_VOLUME } from '../core/library.js';
 import { confirmDialog, promptDialog, showMenu, toast } from '../core/ui.js';
 import { clamp, fmtTime, parseTime, uid, hostOf } from '../core/util.js';
 import { engine } from '../audio/engine.js';
@@ -492,10 +492,10 @@ export function createEditor({ onDeleted, onSelectSound } = {}) {
     clear(settings);
     if (!sound) return;
     const s = sound;
-    const vol = h('input', { class: 'range', type: 'range', min: 0, max: 500, step: 1, value: Math.round((s.volume ?? 1) * 100), 'aria-label': 'Volume' });
+    const vol = h('input', { class: 'range', type: 'range', min: 0, max: MAX_VOLUME * 100, step: 1, value: Math.round(Math.min(s.volume ?? 1, MAX_VOLUME) * 100), 'aria-label': 'Volume' });
     const volNum = h('span', { class: 'num ed-num' });
-    const syncVol = () => { vol.style.setProperty('--fill', `${(vol.value / 500) * 100}%`); volNum.textContent = `${vol.value}%`; };
-    // up to 500%; the engine applies it to the sound wherever it is playing
+    const syncVol = () => { vol.style.setProperty('--fill', `${vol.value / MAX_VOLUME}%`); volNum.textContent = `${vol.value}%`; };
+    // up to 300%; the engine applies it to the sound wherever it is playing
     vol.addEventListener('input', () => { syncVol(); library.update(s.id, { volume: vol.value / 100 }); });
     syncVol();
     const rep = h('select', { class: 'select' }, REPEATS.map(([n, l]) => h('option', { value: String(n), selected: (s.repeat ?? 1) === n }, l)));

@@ -7,7 +7,8 @@
 .panel-inner > * { min-height: 0; }
 
 /* ---------- Console ---------------------------------------------------------- */
-.cn { flex: 1; overflow: auto; display: flex; flex-direction: column; }
+/* the Console keeps its own view still when rows come and go (steady() in console.js), on every browser */
+.cn { flex: 1; overflow: auto; overflow-anchor: none; display: flex; flex-direction: column; }
 .cn-now { display: flex; flex-direction: column; gap: 12px; padding: var(--pad-lg) var(--pad-lg) 14px; }
 .cn-head { display: flex; align-items: flex-end; gap: 16px; min-width: 0; }
 .cn-titles { flex: 1; min-width: 0; }
@@ -105,7 +106,7 @@
 .cn-strip-ch.is-master { margin-left: auto; }
 .cn-chname { font-size: 13px; color: var(--muted); max-width: 100%; text-align: center; }
 .cn-strip-ch.is-master .cn-chname { color: var(--text); font-weight: 500; }
-.cn-val { font-size: 13px; color: var(--text); }
+.cn-val { font-size: 13px; color: var(--text); flex: none; }
 .cn-strip-ch .fader { flex: 1; }
 
 /* Faders */
@@ -116,10 +117,10 @@
 .fader.is-v .fader-track { left: 50%; top: 6px; bottom: 6px; width: 4px; margin-left: -2px; }
 .fader.is-h .fader-track { top: 50%; left: 6px; right: 6px; height: 4px; margin-top: -2px; }
 .fader-fill { position: absolute; background: var(--muted); border-radius: 2px; }
-/* a sound's own fader runs to 500%: a notch marks 100%, the file as it is */
+/* a sound's own fader runs to 300%: a notch marks 100%, the file as it is */
 .cn-strip-ch.is-layer .fader-track::after { content: ""; position: absolute; background: var(--text); opacity: 0.55; pointer-events: none; }
-.cn-strip-ch.is-layer .fader.is-v .fader-track::after { left: -5px; right: -5px; bottom: 20%; height: 1px; }
-.cn-strip-ch.is-layer .fader.is-h .fader-track::after { top: -5px; bottom: -5px; left: 20%; width: 1px; }
+.cn-strip-ch.is-layer .fader.is-v .fader-track::after { left: -5px; right: -5px; bottom: 33.333%; height: 1px; }
+.cn-strip-ch.is-layer .fader.is-h .fader-track::after { top: -5px; bottom: -5px; left: 33.333%; width: 1px; }
 .fader.is-v .fader-fill { left: 0; right: 0; bottom: 0; }
 .fader.is-h .fader-fill { top: 0; bottom: 0; left: 0; }
 .fader-thumb { position: absolute; background: var(--text); border: 2px solid var(--pane); border-radius: 3px; }
@@ -134,7 +135,7 @@
 .cn[data-mode="stack"] .cn-strips { flex: none; height: 280px; }
 /* Wide: mixer beside now playing */
 .cn[data-mode="side"] { flex-direction: row; }
-.cn[data-mode="side"] .cn-now { flex: 1 1 auto; min-width: 0; overflow: auto; }
+.cn[data-mode="side"] .cn-now { flex: 1 1 auto; min-width: 0; overflow: auto; overflow-anchor: none; }
 .cn[data-mode="side"] .cn-mixer { flex: 0 0 auto; width: clamp(340px, 36%, 520px); border-top: 0; border-left: 1px solid var(--border); }
 /* Short: a compact grid of level sliders */
 .cn[data-mode="compact"] .cn-now { gap: 10px; padding-bottom: 12px; }
@@ -143,8 +144,8 @@
 .cn[data-mode="compact"] .cn-strips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; min-height: 0; flex: none; }
 .cn[data-mode="compact"] .cn-strip-ch { flex-direction: row; width: auto; height: 32px; padding: 0; gap: 10px; }
 .cn[data-mode="compact"] .cn-strip-ch.is-layer { width: auto; }
-.cn[data-mode="compact"] .cn-strip-ch .fader { flex: 1; }
-.cn[data-mode="compact"] .cn-chname { width: 72px; flex: none; text-align: left; }
+.cn[data-mode="compact"] .cn-strip-ch .fader { flex: 1 1 auto; min-width: 96px; }
+.cn[data-mode="compact"] .cn-chname { flex: 0 1 72px; min-width: 36px; text-align: left; }
 .cn[data-mode="compact"] .cn-val { width: 40px; text-align: right; }
 .cn[data-mode="compact"] .cn-strip-ch.is-master { margin-left: 0; }
 .cn[data-mode="compact"] .cn-layers { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; padding: 6px 0 0; margin: 4px 0 0; border: 0; border-top: 1px solid var(--rule); overflow: visible; }
@@ -152,7 +153,7 @@
 @container (max-width: 560px) {
   .cn-head { flex-direction: column; align-items: flex-start; gap: 4px; }
   .cn-upnext { text-align: left; flex-basis: 100%; }
-  .cn[data-mode="compact"] .cn-strips { grid-template-columns: minmax(0, 1fr); }
+  .cn[data-mode="compact"] .cn-strips, .cn[data-mode="compact"] .cn-layers { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ---------- Soundboard ---------------------------------------------------------- */

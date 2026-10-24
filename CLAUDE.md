@@ -76,8 +76,11 @@ tools/shrink_sounds.py  cuts long recordings to upload-sized MP3s (20 min from 3
   are layers, started only on purpose by a track's on-top button (startLayer/stopLayer/toggleLayer).
   The library hands out fresh sound objects on every reload, so the engine re-points playing voices on
   'library' and re-applies gain on 'library:sound' (a volume change missed playing sounds before). A
-  sound's volume (and a pad's) goes up to 5.0 (500%); the Console mixer has a fader per playing sound
-  (by sound id, added/removed one at a time so a drag survives a pad going off) setting sound.volume.
+  sound's volume (and a pad's) goes up to `MAX_VOLUME` (3, 300%, in library.js; the engine caps louder
+  saved values); the Console mixer has a fader per playing sound (by sound id, added/removed one at a
+  time so a drag survives a pad going off) setting sound.volume. The Console turns off the browser's
+  scroll anchoring and keeps its view still itself (`steady()`): Safari before 27 has none, and the
+  mixer jumped on the iPad whenever a row was added above it.
 - Performance: per-frame code ('audio:tick') writes to the DOM only when what it shows changes, moves
   progress bars and the playhead with transforms, never reads layout (the waveform's size comes from a
   ResizeObserver), and skips hidden panels. This took playback from ~800 layouts / 900 ms of work per

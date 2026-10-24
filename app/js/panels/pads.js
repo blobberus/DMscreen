@@ -6,7 +6,7 @@ import { h, icon, clear } from '../core/dom.js';
 import { bus } from '../core/bus.js';
 import { keys } from '../core/keys.js';
 import { kbd } from '../core/kbd.js';
-import { library } from '../core/library.js';
+import { library, MAX_VOLUME } from '../core/library.js';
 import { openDialog, pickSound, promptDialog, confirmDialog, showMenu, toast } from '../core/ui.js';
 import { fmtTime } from '../core/util.js';
 import { engine } from '../audio/engine.js';
@@ -268,9 +268,9 @@ export default function createPads({ el }) {
         h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Stop'), endSel)));
       if (!flags.length) body.append(h('p', { class: 'field-hint' }, 'Add flags to this sound in the Sound library to start pads part-way through, or to cut one long recording into many pads.'));
 
-      const vol = h('input', { class: 'range', type: 'range', min: 0, max: 500, step: 1, value: Math.round((pad.volume ?? 1) * 100) });
+      const vol = h('input', { class: 'range', type: 'range', min: 0, max: MAX_VOLUME * 100, step: 1, value: Math.round(Math.min(pad.volume ?? 1, MAX_VOLUME) * 100) });
       const volNum = h('span', { class: 'num pd-volnum' }, `${vol.value}%`);
-      const syncVol = () => { vol.style.setProperty('--fill', `${(vol.value / 500) * 100}%`); volNum.textContent = `${vol.value}%`; };
+      const syncVol = () => { vol.style.setProperty('--fill', `${vol.value / MAX_VOLUME}%`); volNum.textContent = `${vol.value}%`; };
       vol.addEventListener('input', () => { board.setPad(key, { volume: vol.value / 100 }); syncVol(); });
       syncVol();
       body.append(h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Pad volume'), h('div', { class: 'pd-volrow' }, vol, volNum)));

@@ -6,7 +6,7 @@ import { h, icon, clear, setIcon } from '../core/dom.js';
 import { bus } from '../core/bus.js';
 import { keys } from '../core/keys.js';
 import { kbd } from '../core/kbd.js';
-import { library } from '../core/library.js';
+import { library, MAX_VOLUME } from '../core/library.js';
 import { fader } from '../core/fader.js';
 import { fmtTime, fmtDuration, clamp } from '../core/util.js';
 import { engine } from '../audio/engine.js';
@@ -320,13 +320,14 @@ export default function createConsole({ el }) {
     };
     el.addEventListener('pointerdown', (e) => {
       dragging = true;
+      el.classList.add('is-dragging');
       try { el.setPointerCapture(e.pointerId); } catch { /* no capture: the drag still works over the bar */ }
       const p = at(e);
       show(p);
       engine.seekItem(it, p);
     });
     el.addEventListener('pointermove', (e) => { if (!dragging) return; const p = at(e); show(p); engine.seekItem(it, p); });
-    const end = () => { dragging = false; };
+    const end = () => { dragging = false; el.classList.remove('is-dragging'); };
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
     el.addEventListener('keydown', (e) => {
@@ -418,9 +419,10 @@ export default function createConsole({ el }) {
     syncChannels();
   }
   // A fader for every sound that is playing (the track, sounds on top, pads), setting that sound's own
-  // volume from silent to 500%: the same setting as its Volume…, so it is kept with the sound. Strips
+  // volume from silent to 300%: the same setting as its Volume…, so it is kept with the sound. Strips
   // are added and removed one by one, so a pad going off never interrupts a fader being dragged.
-  const MAXVOL = 5;
+  const pct = (x) => `${Math.round(x * MAX_VOLUME * 100)}%`;
+  const faderAt = (volume) => clamp((volume ?? 1) / MAX_VOLUME, 0, 1);
   function syncChannels() {
     if (!chanHost) return;
     const vertical = mode !== 'compact';
@@ -430,10 +432,9 @@ export default function createConsole({ el }) {
     for (const it of items) {
       if (chans.has(it.id)) continue;
       const s = library.get(it.id) || it.voice.sound;
-      const pct = (x) => `${Math.round(x * MAXVOL * 100)}%`;
-      const start = clamp((s.volume ?? 1) / MAXVOL, 0, 1);
+      const start = faderAt(s.volume);
       const val = h('span', { class: 'cn-val num' }, pct(start));
-      const f = fader({ value: start, vertical, label: `${s.name} volume`, format: (x) => Math.round(x * MAXVOL * 100), onInput: (x) => { library.update(it.id, { volume: x * MAXVOL }); val.textContent = pct(x); } });
+      const f = fader({ value: start, vertical, label: `${s.name} volume`, format: (x) => Math.round(x * MAX_VOLUME * 100), onInput: (x) => { library.update(it.id, { volume: x * MAX_VOLUME }); val.textContent = pct(x); } });
       const stop = () => {
         for (const p of engine.playingNow().filter((q) => q.id === it.id)) {
           if (p.role === 'deck') engine.stopMusic(1); else if (p.role === 'top') engine.stopLayer(p.id); else engine.stopPadVoice(p.voice);
@@ -454,8 +455,9 @@ export default function createConsole({ el }) {
   function followVolume(s) {
     const c = chans.get(s.id);
     if (!c) return;
-    c.f.value = clamp((s.volume ?? 1) / MAXVOL, 0, 1);
-    c.val.textContent = `${Math.round((s.volume ?? 1) * 100)}%`;
+    if (c.f.el.classList.contains('is-dragging')) return;         // its own drag: already shown
+    c.f.value = faderAt(s.volume);
+    c.val.textContent = pct(c.f.value);
   }
   function busStrip(name, label, isMaster = false, vertical = true) {
     const val = h('span', { class: 'cn-val num' });
@@ -477,18 +479,39 @@ export default function createConsole({ el }) {
     duckBtn.classList.toggle('is-active', engine.ducked);
   }
 
+  // Rows come and go above what you may be looking at: a sound starts or ends and the Playing list grows
+  // or shrinks, the next track has more flags. The browser's own scroll anchoring is off (.cn) and this
+  // keeps the view still instead, on every browser: Safari before 27 has none, so on the iPad the mixer
+  // jumped a row each time something started. A fader being dragged stays under the finger.
+  function steady(change) {
+    const box = mode === 'side' ? now : root;
+    if (box.scrollTop <= 0) { change(); return; }
+    const top = box.getBoundingClientRect().top;
+    const held = box.querySelector('.fader.is-dragging, .cn-pbar.is-dragging');
+    const blocks = [...now.children, ...(mode === 'side' ? [] : [mixer.firstElementChild, ...strips.children, ...(chanHost?.children || [])])]
+      .filter((b) => b.getClientRects().length);                    // not the hidden ones (no track: no waveform)
+    const anchor = held || blocks.find((b) => b.getBoundingClientRect().top >= top) || blocks.find((b) => b.getBoundingClientRect().bottom > top);
+    if (!anchor) { change(); return; }
+    const before = anchor.getBoundingClientRect().top;
+    change();
+    if (!anchor.isConnected) return;
+    const moved = anchor.getBoundingClientRect().top - before;
+    if (Math.abs(moved) >= 1) box.scrollTop += moved;
+  }
+
   buildStrips();
   render();
   const offs = [
-    bus.on('audio', () => { render(); syncChannels(); }),
+    bus.on('audio', () => steady(() => { render(); syncChannels(); })),
     bus.on('library:sound', followVolume),
     bus.on('audio:tick', () => { if (!el.closest('.panel')?.hidden) tick(); }),
     bus.on('audio:levels', syncLevels),
     bus.on('audio:lowpass', syncLowpass),
-    bus.on('library:sound', (s) => { if (engine.music.voice?.sound.id === s.id) { flagsKey = ''; render(); } }),
-    bus.on('state:playlists', renderPlaylists),
-    bus.on('state:boards', renderEffects),
-    bus.on('library', () => { fxKey = ''; renderEffects(); }),
+    // the track's flags or trim may have changed (render() rebuilds them only if so); not its volume
+    bus.on('library:sound', (s) => { if (engine.music.voice?.sound.id === s.id) steady(render); }),
+    bus.on('state:playlists', () => steady(renderPlaylists)),
+    bus.on('state:boards', () => steady(renderEffects)),
+    bus.on('library', () => { fxKey = ''; steady(renderEffects); }),
     bus.on('state:settings', () => { colors = themeColors(); cache.key = null; drawWave(); }),
   ];
 

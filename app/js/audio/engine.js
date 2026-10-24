@@ -13,7 +13,7 @@
 // Every voice runs through its own low-pass filter, wide open unless the sound is switched into the
 // one sweep the Console controls (setLowpass), so it can be muffled live like a knob on a desk.
 // Emits 'audio' when what is playing changes and 'audio:tick' on animation frames while playing.
-import { library } from '../core/library.js';
+import { library, MAX_VOLUME } from '../core/library.js';
 import { state } from '../core/state.js';
 import { bus } from '../core/bus.js';
 import { clamp, shuffled } from '../core/util.js';
@@ -64,7 +64,7 @@ class Voice {
     engine.voices.add(this);
   }
   get length() { return this.to - this.from; }
-  get gain() { return (this.sound.volume ?? 1) * this.volume; }
+  get gain() { return clamp(this.sound.volume ?? 1, 0, MAX_VOLUME) * clamp(this.volume, 0, MAX_VOLUME); }
   get finalPass() { return this.repeat !== 0 && this.passes >= this.repeat - 1; }
   get progress() { return this.length > 0 ? clamp(this.position / this.length, 0, 1) : 0; }
   ramp(value, seconds) {

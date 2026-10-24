@@ -28,6 +28,7 @@ export function fader({ value = 0.5, label, vertical = true, onInput, onChange, 
   };
   const fromEvent = (e) => {
     const r = track.getBoundingClientRect();
+    if ((vertical ? r.height : r.width) < 1) return v;           // squeezed to nothing: no jump to 0 or full
     return vertical ? 1 - (e.clientY - r.top) / r.height : (e.clientX - r.left) / r.width;
   };
   el.addEventListener('pointerdown', (e) => {

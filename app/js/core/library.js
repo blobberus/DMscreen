@@ -34,6 +34,9 @@ function watchAnalysis() {
 }
 
 export const KIND_LABEL = { music: 'Music', ambience: 'Ambience', effect: 'Effect' };
+// A sound's volume (and a pad's) runs from silent to 3, 300% of the file. A louder one saved before the
+// limit plays at 300%.
+export const MAX_VOLUME = 3;
 
 export const library = {
   async load() {
