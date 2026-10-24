@@ -110,6 +110,13 @@ class Voice {
       this.onApproach.run(this);
     }
   }
+  /** Loop from now on, or stop looping (it ends after the pass it is in). Works while it plays. */
+  setLooping(on) {
+    this.repeat = on ? 0 : this.passes + 1;
+    if (on && !this.loopFade && this.length > 6) this.loopFade = 1;      // a long sound loops without a click
+    if (this.fadingOut && this.state === 'playing' && on) { this.fadingOut = false; this.ramp(this.gain, 0.1); }
+    this.relooped();
+  }
   scheduleFadeOut() {
     clearTimeout(this.fadeTimer);
     if (!this.fadeOut || !this.finalPass || this.state !== 'playing') return;
@@ -217,6 +224,12 @@ class MediaVoice extends Voice {
   release() {
     if (this.cur) releasePair(this.cur);
     this.cur = null;
+  }
+  relooped() {
+    if (this.state !== 'playing') return;
+    this.approached = false;
+    this.armEnd();
+    this.scheduleFadeOut();
   }
 }
 
@@ -327,6 +340,8 @@ class BufferVoice extends Voice {
     this.engine.changed();
   }
   release() { this.halt(); }
+  // a playing source can't change between once and looping, so it carries on from where it is
+  relooped() { if (this.state === 'playing') this.seek(this.position); }
 }
 
 // ---------------------------------------------------------------------------
@@ -766,14 +781,27 @@ class Engine {
     const live = (v) => v && v.state !== 'stopped' && v.state !== 'stopping';
     const m = this.music;
     if (live(m.voice)) out.push({ voice: m.voice, role: 'deck', id: m.voice.sound.id, where: m.playlist()?.name || 'on its own', lowpass: this.lowpass.deck });
-    for (const [id, l] of this.layers) if (live(l.voice)) out.push({ voice: l.voice, role: 'top', id, where: 'on top', lowpass: l.lowpass });
+    for (const [id, l] of this.layers) if (live(l.voice)) out.push({ voice: l.voice, role: 'top', id, where: 'on top', lowpass: l.lowpass, loop: l.voice.repeat === 0 });
     for (const [key, set] of this.pads) {
       for (const v of set) {
         if (!live(v)) continue;
-        out.push({ voice: v, role: 'pad', id: v.sound.id, where: key.startsWith('lib:') ? 'effect' : `pad ${key.split(':').pop()}`, lowpass: this.lowpass.pads });
+        out.push({ voice: v, role: 'pad', id: v.sound.id, where: key.startsWith('lib:') ? 'from the library' : `pad ${key.split(':').pop()}`, lowpass: this.lowpass.pads, loop: v.repeat === 0 });
       }
     }
     return out;
+  }
+  /** Pause or resume one playing sound (a playingNow() entry): the track, a sound on top or a pad. */
+  togglePauseItem(item) {
+    if (item.role === 'deck') { this.togglePlay(); return; }
+    const v = item.voice;
+    if (v.state === 'playing') v.pause();
+    else if (v.state === 'paused') v.resume();
+  }
+  /** Loop a sound on top or a pad (a playingNow() entry), or let it finish. */
+  setLooping(item, on) {
+    if (item.role === 'deck') return;                 // the deck loops with its repeat (Repeat track)
+    item.voice.setLooping(on);
+    this.changed();
   }
   /** Move a playing sound (a playingNow() entry) to a position, in seconds from its start. */
   seekItem(item, pos) {

@@ -1,7 +1,7 @@
 // Console: the screen's answer to "what is playing, and what can I fire next?"
 // Now playing with its flag strip (click a flag or press Alt+Shift+1..9), the transport, a list of
-// everything playing (the track, sounds on top, long pads), each with its own scrub bar, low-pass switch
-// and stop, the low-pass sweep, the playlist keys, and the mixer with a fader for every sound playing.
+// everything playing (the track, sounds on top, pads), each with its own scrub bar, loop, low-pass switch,
+// pause and stop, the low-pass sweep, the playlist keys, and the mixer with a fader for every sound playing.
 import { h, icon, clear, setIcon } from '../core/dom.js';
 import { bus } from '../core/bus.js';
 import { keys } from '../core/keys.js';
@@ -261,7 +261,7 @@ export default function createConsole({ el }) {
   let playingKey = null;
   function renderPlaying() {
     const items = engine.playingNow();
-    const key = items.map((it) => `${it.role}:${it.voice.serial}:${it.voice.state === 'paused'}:${it.lowpass}`).join('|');
+    const key = items.map((it) => `${it.role}:${it.voice.serial}:${it.voice.state === 'paused'}:${it.lowpass}:${it.loop}`).join('|');
     if (key === playingKey) { tickPlaying(); return; }
     playingKey = key;
     clear(playingList);
@@ -283,8 +283,10 @@ export default function createConsole({ el }) {
           h('span', { class: 'cn-pwhere meta truncate' }, `${KIND[v.sound.kind] || 'Sound'} · ${paused ? `${it.where} · paused` : it.where}`)),
         time,
         h('span', { class: 'cn-pbtns' },
+          // sounds on top and pads loop or play once (the track loops with the transport's Repeat track)
+          it.role === 'deck' ? null : h('button', { class: 'btn-icon btn-sm', type: 'button', 'aria-pressed': String(!!it.loop), title: it.loop ? 'Looping. Press to let it finish this pass.' : 'Plays once. Press to loop it.', 'aria-label': `Loop ${name}`, onclick: () => engine.setLooping(it, !it.loop) }, icon('loop', 'icon-sm')),
           h('button', { class: 'btn-icon btn-sm', type: 'button', 'aria-pressed': String(!!it.lowpass), title: it.lowpass ? 'Goes through the low-pass. Press to keep it clear.' : 'Kept clear of the low-pass. Press to send it through.', 'aria-label': `Low-pass for ${name}`, onclick: () => engine.setFiltered(it, !it.lowpass) }, icon('wave', 'icon-sm')),
-          it.role === 'deck' ? h('button', { class: 'btn-icon btn-sm', type: 'button', title: paused ? 'Resume' : 'Pause', 'aria-label': `${paused ? 'Resume' : 'Pause'} ${name}`, onclick: () => engine.togglePlay() }, icon(paused ? 'play' : 'pause', 'icon-sm')) : null,
+          h('button', { class: 'btn-icon btn-sm', type: 'button', title: paused ? 'Resume' : 'Pause', 'aria-label': `${paused ? 'Resume' : 'Pause'} ${name}`, onclick: () => engine.togglePauseItem(it) }, icon(paused ? 'play' : 'pause', 'icon-sm')),
           h('button', { class: 'btn-icon btn-sm', type: 'button', title: `Stop ${name}`, 'aria-label': `Stop ${name}`, onclick: stop }, icon('stop', 'icon-sm'))),
         bar.el));
       playingRows.push({ v, time, bar });

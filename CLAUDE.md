@@ -73,7 +73,8 @@ tools/shrink_sounds.py  cuts long recordings to upload-sized MP3s (20 min from 3
   ResizeObserver), and skips hidden panels. This took playback from ~800 layouts / 900 ms of work per
   5 s to ~10 / 80 ms. The build adds modulepreload links for main.js's static imports.
   `playingNow()` lists deck + on top + every pad voice for the Console's Playing list (each row scrubs with
-  `seekItem`). Every voice has its own low-pass BiquadFilter; `setLowpass(0..1)` sweeps the ones switched
+  `seekItem`, pauses with `togglePauseItem`, and loops a top/pad sound with `setLooping`, which sets the
+  voice's repeat live: MediaVoice re-arms its end, BufferVoice restarts its source where it is). Every voice has its own low-pass BiquadFilter; `setLowpass(0..1)` sweeps the ones switched
   in (`lowpass.deck`, each layer's `lowpass`, `lowpass.pads`; `setFiltered`), previews never. Transport
   (playPlaylist/playSingle/next/prev/togglePlay/jumpFlag/nextFlag/prevFlag), pads (firePad,
   stopPadVoice), fadeAll, toggleDuck, preview.
