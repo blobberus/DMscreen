@@ -2,6 +2,8 @@
 // never change: they come from the cache first, and a sound kept whole answers the byte ranges an
 // <audio> element asks for. Everything else (the screen itself, the sound list) comes from the network
 // first and from the cache when there is none, so the screen opens offline with what it last saw.
+// "The network" means asking GitHub every time (no-cache): its ten-minute browser cache could otherwise
+// hand back an old page after a publish. The build puts a version on every module's address.
 const SHELL = 'dm-shell-v1';
 const MEDIA = 'dm-media-v1';
 
@@ -51,10 +53,14 @@ async function shell(req) {
   const cache = await caches.open(SHELL);
   try {
     const res = await Promise.race([
-      fetch(req),
+      // a page load (navigate) can't be re-made with options, so it is fetched by its address
+      fetch(req.mode === 'navigate' ? req.url : req, { cache: 'no-cache' }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('slow')), 6000)),
     ]);
-    if (res.ok) cache.put(req, res.clone());
+    if (res.ok) {
+      await cache.delete(req, { ignoreSearch: true });     // the copy from an older version
+      cache.put(req, res.clone());
+    }
     return res;
   } catch (err) {
     const hit = await cache.match(req, { ignoreSearch: true });

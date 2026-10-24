@@ -13,6 +13,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -93,6 +94,36 @@ def mark_pages(out: Path, marks: dict):
         p.write_text(text.replace(MARK_AFTER, MARK_AFTER + tags, 1), 'utf-8')
 
 
+# Relative module imports: `from './x.js'`, `import './x.js'`, `import('./x.js')`.
+IMPORT_RE = re.compile(r"""(\b(?:from|import)\s*\(?\s*)(['"])(\.{1,2}/[^'"?#]+?\.js)\2""")
+PAGE_RE = re.compile(r'((?:src|href)=")((?:js|css)/[^"?#]+\.(?:js|css))"')
+
+
+def stamp_version(out: Path):
+    """Put this build's version on every module and stylesheet URL (?v=...). GitHub Pages lets browsers
+    keep files for ten minutes, so right after a publish a browser could otherwise run a mix of old and
+    new modules (the screen broke that way once). The version is a hash of the app's files."""
+    h = hashlib.sha1()
+    files = sorted(p for p in out.rglob('*') if p.is_file() and p.suffix in ('.js', '.css', '.html'))
+    for p in files:
+        h.update(p.relative_to(out).as_posix().encode())
+        h.update(p.read_bytes())
+    q = f'?v={h.hexdigest()[:10]}'
+    for p in files:
+        if p.name == 'sw.js':
+            continue                          # the service worker keeps its address
+        text = p.read_text('utf-8')
+        if p.suffix == '.js':
+            new = IMPORT_RE.sub(lambda m: f'{m.group(1)}{m.group(2)}{m.group(3)}{q}{m.group(2)}', text)
+        elif p.suffix == '.html':
+            new = PAGE_RE.sub(lambda m: f'{m.group(1)}{m.group(2)}{q}"', text)
+        else:
+            continue
+        if new != text:
+            p.write_text(new, 'utf-8')
+    return q[3:]
+
+
 def commit_id():
     if os.environ.get('GITHUB_SHA'):
         return os.environ['GITHUB_SHA']
@@ -122,6 +153,7 @@ def main():
         if getattr(args, f'github_{name}'):
             marks[f'dm-github-{name}'] = getattr(args, f'github_{name}')
     mark_pages(out, marks)
+    stamp_version(out)
     (out / '.nojekyll').write_text('', 'utf-8')
 
     ffmpeg = find_ffmpeg()

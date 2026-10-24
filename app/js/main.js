@@ -65,16 +65,16 @@ function buildTop() {
     setIcon(playIcon, v && v.state === 'playing' ? 'pause' : 'play');
     if (!s) {
       const pl = engine.playlist();
-      const amb = engine.ambience.voice && (engine.ambience.playlist()?.name || engine.ambience.track?.name);
-      const idle = pl ? `${pl.name}: stopped. Alt+P to play.` : amb ? 'No music.' : 'Nothing playing. Alt+1 to 9 starts a playlist.';
-      title.replaceChildren(h('span', { class: 'deck-idle' }, amb ? `${idle} Ambience: ${amb}.` : idle));
+      const top = engine.layers.size;
+      title.replaceChildren(h('span', { class: 'deck-idle' }, pl ? `${pl.name}: stopped. Alt+P to play.` : top ? `${top} ${top === 1 ? 'sound' : 'sounds'} on top. Alt+1 to 9 starts a playlist.` : 'Nothing playing. Alt+1 to 9 starts a playlist.'));
       time.textContent = '';
       bar.hidden = true;
       return;
     }
     bar.hidden = false;
     const pl = engine.playlist();
-    title.replaceChildren(pl ? h('span', { class: 'deck-pl' }, `${pl.name} · `) : '', s.name);
+    const top = engine.layers.size;
+    title.replaceChildren(pl ? h('span', { class: 'deck-pl' }, `${pl.name} · `) : '', s.name, top ? h('span', { class: 'deck-pl' }, `  + ${top} on top`) : '');
     const key = `${s.id}|${v.from}|${v.to}|${(s.flags || []).map((f) => f.t).join(',')}`;
     if (key !== flagsKey) {
       flagsKey = key;

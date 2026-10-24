@@ -3,10 +3,11 @@
 A Dungeon Master's screen for the table: up to four panes you arrange however the session needs,
 built around a sound console you can run from the keyboard without looking.
 
-- **Sound console**: what is playing, its flags, the transport, your playlists and a mixer.
+- **Sound console**: everything that is playing (each with a stop), the track's flags, the transport,
+  your playlists and a mixer.
 - **Soundboard**: effect pads laid out like your keyboard. Alt+Q fires the pad on Q.
-- **Playlists**: music for each scene and ambience playlists that play under it, on number keys
-  (Alt+1 to 9). Music, ambience and effects all play at once.
+- **Playlists**: music and ambience playlists, listed apart, on number keys (Alt+1 to 9). Starting a
+  track ends the one playing; a track's on-top button plays it over whatever is playing instead.
 - **Sound library and editor**: add files, download from links, trim, drop flags, set repeats and
   fades, cut part of a sound into a new one, export MP3 or WAV.
 - **YouTube**: search, preview, and download the audio (all of it, or just a stretch) as MP3.
@@ -33,7 +34,7 @@ Open **https://blobberus.github.io/DMscreen/** and enter the password.
 | Folder | On the screen |
 |---|---|
 | `sounds/Music/<name>/` | the playlist *name*; its files are the tracks, in file-name order |
-| `sounds/Ambience/<name>/` | the ambience playlist *name*: it plays under the music, and starts with the playlist of the same name |
+| `sounds/Ambience/<name>/` | the ambience playlist *name*, listed apart from the music |
 | `sounds/Effects/<name>/` | the soundboard bank *name*; each sound takes the next free letter key |
 
 - **Add sounds:** every folder on the screen has an **Add** button. It opens GitHub's upload page for
@@ -91,7 +92,7 @@ Needs Python 3.10 or newer (already on this computer). Everything else installs 
 
 | Keys | What they do |
 | --- | --- |
-| Alt+1 … Alt+9 | Start the playlist on that number (music crossfades, its ambience fades in; an ambience playlist starts under the music) |
+| Alt+1 … Alt+9 | Start the playlist on that number (it crossfades from what was playing) |
 | Alt+Q, Alt+W, … | Fire the pad on that key in the current bank |
 | Alt+P | Play or pause the music |
 | Alt+, / Alt+. | Previous / next track |
@@ -122,8 +123,16 @@ a "100 sword sounds" video becomes a hundred pads. A pad can also start at a fla
 one, so one long recording can feed a whole bank.
 
 Ambience loops forever by default, with a short blend at the loop point so it never clicks. Any sound
-can be set to play once, a number of times, or forever, with fades in and out. In an ambience playlist
-each sound plays through once and the next crossfades in; choose **Repeat track** to loop just one.
+can be set to play once, a number of times, or forever, with fades in and out. In a playlist each sound
+plays through once and the next crossfades in; choose **Repeat track** to loop just one.
+
+### One track, and sounds on top
+
+Playing a track or a playlist ends whatever was playing, so a playlist never plays all its sounds at
+once. To layer sounds (music with rain under it, a crowd over a fire), press a track's **on-top** button
+(the stacked squares) in the Playlists pane or the Sound library: just that sound plays over the rest,
+and pressing it again stops it. Pads always play over everything. The Console's **Playing** list shows
+every sound that is playing, each with its own stop button.
 
 ### Previews in your headphones
 

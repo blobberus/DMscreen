@@ -5,7 +5,7 @@ Everything in this folder plays on the DM screen at **https://blobberus.github.i
 | Folder | On the screen |
 |---|---|
 | `Music/<name>/` | A **playlist** called *name*. Its files are the tracks, played in file-name order. Playlists take the number keys in folder order: Alt+1 starts the first. |
-| `Ambience/<name>/` | An **ambience playlist** called *name*. Its files play one after another and the playlist repeats, **under** the music and the pads, so music, ambience and effects all play at once. It starts with the music playlist of the **same name** (`Ambience/Tavern` plays under `Music/01 Tavern`), or on its own from the Playlists pane, the Console or its number key. |
+| `Ambience/<name>/` | An **ambience playlist** called *name*, listed apart from the music. Like any playlist, its files play one after another and starting it ends what was playing. Any sound can also be played **on top** of what is playing, from its on-top button. |
 | `Effects/<name>/` | A **bank of soundboard pads** called *name*. Each sound takes the next free letter key: Q, W, E, R, T and on. |
 
 ## Adding sounds

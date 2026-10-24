@@ -59,11 +59,13 @@ tools/shrink_sounds.py  cuts long recordings to upload-sized MP3s (20 min from 3
 - `library` (client): `list/get/update(id, patch)` (debounced PATCH), `peaks(id)`, `upload`, `clip`,
   `download`, jobs polling. Sound fields: name kind trimStart trimEnd flags[{id,t,label}] repeat (1 once,
   N times, 0 forever) volume fadeIn fadeOut loopFade tags.
-- `engine`: two decks of the `Deck` class, `engine.music` and `engine.ambience` (ambience playlists, on the
-  ambience bus; each track plays once per pass), so music + ambience + pads play at once. `deckFor(pl)`;
-  `playPlaylist(pl)` picks the deck. The engine's transport is the music deck's
-  (playPlaylist/playSingle/next/prev/togglePlay/jumpFlag/nextFlag/prevFlag),
-  ambience layers (startLayer/stopLayer/setAmbience), pads (firePad), fadeAll, toggleDuck, preview.
+- `engine`: ONE deck (`engine.music`, a `Deck`) plays any playlist (music or ambience) or single track;
+  starting one ends the one before (the user's rule: a playlist never plays its sounds at once). A
+  sound plays on its kind's bus; a loop-forever sound plays once per pass on the deck. Sounds "on top"
+  are layers, started only on purpose by a track's on-top button (startLayer/stopLayer/toggleLayer).
+  `playingNow()` lists deck + on top + long pads for the Console's Playing list. Transport
+  (playPlaylist/playSingle/next/prev/togglePlay/jumpFlag/nextFlag/prevFlag), pads (firePad,
+  stopPadVoice), fadeAll, toggleDuck, preview.
   Files ≤ 2 min decode to AudioBuffers; longer ones stream through MediaElementSource.
 - `keys`: actions with Alt combos (event.code based); unused letters fire pads via `board.fire(key)`.
   Frames: cross-site iframes give the page no pointer events, so a frame counts as chosen when the pointer
@@ -86,9 +88,12 @@ tools/shrink_sounds.py  cuts long recordings to upload-sized MP3s (20 min from 3
   rename never changes it. `groupOf(path)` = category + first folder = the playlist / pad bank id.
 - `playlists.reconcile()` and `board.reconcile()` rebuild playlists and banks from the folders on every
   'library' and 'site:docs' event; `seen` remembers auto-placed pads so removals stick. Music folders are
-  playlists, Ambience folders playlists with `kind: 'ambience'`; `playlists.ambienceFor(pl)` (its
-  `withAmbience`, else the same-name ambience playlist) starts with a music playlist. `pl.ambience` is
-  extra layers. The old `seenAmbience` auto-layers are dropped on reconcile.
+  playlists, Ambience folders playlists with `kind: 'ambience'` (listed apart, same deck). Nothing
+  starts with a playlist: reconcile deletes the old `ambience` / `seenAmbience` / `withAmbience` fields.
+- Caching: Pages lets browsers keep files 10 minutes, so `build_site.py` stamps `?v=<hash>` on every
+  module import and the pages' script/style links, and `sw.js` fetches the shell with `no-cache`. A
+  mixed old/new set of modules once broke the Playlists pane and saved old-format setup. In tests,
+  import modules with the page's version: `'./js/x.js' + new URL(document.querySelector('script[type=module]').src).search`.
 - Synced docs (`playlists boards keymap bookmarks` + sound meta) live in `setup.doc` and go to GitHub
   6 s after a change (Contents API, 3-way merge on conflict). `settings layouts` stay in localStorage.
 - Renames/moves/deletes/new folders (and `library.moveFolder` between Music and Ambience): one Git Data API commit with the remapped setup.json, then a

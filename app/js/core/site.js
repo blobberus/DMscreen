@@ -1,8 +1,8 @@
 // The website version (GitHub Pages). There is no server:
 // - sounds are the audio files in the repo's sounds/ folder. The Pages workflow lists them in
 //   library.json with their length and waveform, and serves each one as media/<content id>.
-// - the folders are the screen: sounds/Music/<name> is a playlist, sounds/Ambience/<name> the ambience
-//   for the playlist of the same name, sounds/Effects/<name> a bank of soundboard pads.
+// - the folders are the screen: sounds/Music/<name> is a playlist, sounds/Ambience/<name> an ambience
+//   playlist (listed apart), sounds/Effects/<name> a bank of soundboard pads.
 // - the setup (flags, trims, pads, playlist keys, shortcuts, bookmarks) is screen/setup.json. Every
 //   change is kept in this browser at once and, when this device is connected to GitHub, committed a few
 //   seconds later. Layouts and settings belong to each device and stay in it.
@@ -79,7 +79,7 @@ export function folderReadme(dir) {
   const name = folderName(dir);
   const what = {
     music: `The **${name}** playlist. Every audio file in this folder is one of its tracks, played in file-name order. Its number key is set on the screen.`,
-    ambience: `The **${name}** ambience playlist. Its files play one after another in file-name order, under the music and the soundboard, and it starts by itself with the **${name}** music playlist (the folder in sounds/Music with the same name). Its number key is set on the screen.`,
+    ambience: `The **${name}** ambience playlist. Its files play one after another in file-name order, like any playlist: starting it ends what was playing. To play one of its sounds over something else, use that sound's on-top button in the Playlists pane. Its number key is set on the screen.`,
     effect: `The **${name}** bank of soundboard pads. Each sound here gets the next free letter key; change keys, labels and how pads play on the screen.`,
   }[kind] || `Sounds in **${name}**. They appear in the Sound library.`;
   return `# ${name}\n\n${what}\n\n**To add sounds:** choose **Add file**, then **Upload files**, drop in your MP3s (up to 25 MB each) and press **Commit changes**. They show up on the DM screen about a minute later.\n\nNaming rules and the rest of the folders: [sounds/README.md](${'../'.repeat(Math.max(1, dir.split('/').length))}README.md)\n`;
@@ -445,8 +445,6 @@ function remapDoc(doc, map) {
   for (const pl of d.playlists?.list || []) {
     if (pl.dir) { pl.dir = map(pl.dir); pl.id = pl.dir; }
     for (const a of pl.ambience || []) a.id = map(a.id);
-    if (pl.seenAmbience) pl.seenAmbience = pl.seenAmbience.map(map);
-    if (pl.withAmbience) pl.withAmbience = map(pl.withAmbience);
   }
   for (const b of d.boards?.banks || []) {
     if (b.dir) { b.dir = map(b.dir); b.id = b.dir; }

@@ -291,7 +291,7 @@ export default function createPads({ el }) {
     bus.on('state:keymap', renderBoard),
     bus.on('library', renderBoard),
     bus.on('audio', () => {
-      const playingList = [engine.music, engine.ambience].map((d) => (d.voice ? d.playlistId : '')).join('|');
+      const playingList = engine.music.voice ? engine.music.playlistId : null;
       if (playingList !== lastList) { lastList = playingList; renderBoard(); } else tick();
     }),
     bus.on('audio:tick', tick),

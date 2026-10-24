@@ -1,5 +1,6 @@
-// Playlists: music for a scene plus the ambience that goes with it, on a number key (Alt+1 to 9).
-// Ambience playlists (kind 'ambience') play on their own deck, so they run under any music.
+// Playlists: the tracks for a scene, on a number key (Alt+1 to 9). Music and ambience playlists are kept
+// apart (kind 'ambience'), but both play on the one deck: starting a playlist ends what was playing.
+// To play a sound over it, a track's on-top button starts it as a layer (engine.startLayer).
 import { state } from '../core/state.js';
 import { bus } from '../core/bus.js';
 import { uid } from '../core/util.js';
@@ -22,7 +23,7 @@ export const playlists = {
     return null;
   },
   create(name = 'New playlist', kind = 'music') {
-    const pl = { id: uid('pl'), name, key: this.freeKey(), tracks: [], ambience: [], shuffle: false, repeat: 'all', crossfade: state.get('settings').crossfade };
+    const pl = { id: uid('pl'), name, key: this.freeKey(), tracks: [], shuffle: false, repeat: 'all', crossfade: state.get('settings').crossfade };
     if (kind === 'ambience') pl.kind = 'ambience';
     state.update('playlists', (d) => { d.list.push(pl); });
     return pl;
@@ -36,26 +37,12 @@ export const playlists = {
     });
   },
   remove(id) {
-    for (const deck of [engine.music, engine.ambience]) if (deck.playlistId === id) deck.playlistId = null;
-    state.update('playlists', (d) => {
-      d.list = d.list.filter((p) => p.id !== id);
-      for (const p of d.list) if (p.withAmbience === id) p.withAmbience = null;
-    });
+    if (engine.music.playlistId === id) engine.music.playlistId = null;
+    state.update('playlists', (d) => { d.list = d.list.filter((p) => p.id !== id); });
   },
-  /** Is it playing on its deck? */
+  /** Is it the one on the deck? */
   playing(pl) {
-    const deck = engine.deckFor(pl);
-    return !!pl && deck.playlistId === pl.id && !!deck.voice;
-  },
-  /** The ambience playlist that starts with a music playlist: the one chosen, or else the one with its name. */
-  ambienceFor(pl) {
-    if (!pl || pl.kind === 'ambience') return null;
-    if (pl.withAmbience !== undefined) {
-      const chosen = pl.withAmbience && this.get(pl.withAmbience);
-      return chosen?.kind === 'ambience' ? chosen : null;
-    }
-    const name = pl.name.trim().toLowerCase();
-    return this.ofKind('ambience').find((a) => a.name.trim().toLowerCase() === name) || null;
+    return !!pl && engine.music.playlistId === pl.id && !!engine.music.voice;
   },
   move(id, toIndex) {
     state.update('playlists', (d) => {
@@ -73,13 +60,6 @@ export const playlists = {
       if (at == null) pl.tracks.push(...fresh); else pl.tracks.splice(at, 0, ...fresh);
     });
   },
-  addAmbience(id, ids) {
-    state.update('playlists', (d) => {
-      const pl = d.list.find((p) => p.id === id);
-      if (!pl) return;
-      for (const sid of ids) if (!pl.ambience.some((a) => a.id === sid)) pl.ambience.push({ id: sid, volume: 0.8 });
-    });
-  },
   duration(pl) {
     return pl.tracks.reduce((sum, id) => {
       const s = library.get(id);
@@ -90,9 +70,8 @@ export const playlists = {
   },
   /**
    * Website: one playlist per folder in sounds/Music, and one ambience playlist per folder in
-   * sounds/Ambience, their tracks the files in them (in file-name order). A music playlist starts the
-   * ambience playlist of the same name. Number keys go to the playlists in folder order, music first,
-   * until you change them.
+   * sounds/Ambience, their tracks the files in them (in file-name order). Number keys go to the
+   * playlists in folder order, music first, until you change them.
    */
   reconcile() {
     if (!SITE) return;
@@ -101,16 +80,16 @@ export const playlists = {
     const d = structuredClone(state.get('playlists'));
     const byDir = new Map(d.list.filter((p) => p.dir).map((p) => [p.dir, p]));
     const make = (dir, kind) => {
-      const pl = byDir.get(dir) || { id: dir, dir, ambience: [], shuffle: false, repeat: 'all', crossfade: state.get('settings').crossfade };
+      const pl = byDir.get(dir) || { id: dir, dir, shuffle: false, repeat: 'all', crossfade: state.get('settings').crossfade };
       pl.id = dir;
       pl.name = folderName(dir);
       if (kind === 'ambience') pl.kind = 'ambience'; else delete pl.kind;
       pl.tracks = sounds.filter((s) => s.group === dir).map((s) => s.id);
-      // the layers that once joined by themselves (from the ambience folder of the same name) now come
-      // as that folder's ambience playlist, so they would play twice
-      const auto = new Set(pl.seenAmbience || []);
-      pl.ambience = kind === 'ambience' ? [] : (pl.ambience || []).filter((a) => library.has(a.id) && !auto.has(a.id));
+      // layers that used to start with a playlist (and the old auto-joined ones) are gone: a playlist
+      // plays one track at a time, and sounds go on top only when you put them there
+      delete pl.ambience;
       delete pl.seenAmbience;
+      delete pl.withAmbience;
       return pl;
     };
     d.list = [...library.groups('music').map((dir) => make(dir, 'music')), ...library.groups('ambience').map((dir) => make(dir, 'ambience'))];
@@ -124,25 +103,21 @@ export const playlists = {
     }
     if (JSON.stringify(d) !== before) state.set('playlists', d);
   },
+  /** Start a playlist (from a track with {index}), ending whatever the deck was playing. */
   play(id, opts) {
     const pl = this.get(id);
     if (!pl) return;
-    const amb = this.ambienceFor(pl);
-    if (!pl.tracks.length && !pl.ambience.length && !amb?.tracks.length) {
-      bus.emit('toast', { message: pl.kind === 'ambience'
-        ? `“${pl.name}” is empty. ${SITE ? 'Add sounds to its folder in sounds/Ambience on GitHub.' : 'Add ambience to it in the Playlists pane.'}`
-        : `“${pl.name}” is empty. Add music or ambience in the Playlists pane.` });
+    if (!pl.tracks.length) {
+      bus.emit('toast', { message: `“${pl.name}” is empty. ${SITE
+        ? `Add sounds to its folder in sounds/${pl.kind === 'ambience' ? 'Ambience' : 'Music'} on GitHub.`
+        : 'Add sounds to it in the Playlists pane.'}` });
       return;
     }
-    // its ambience playlist starts with it, unless that is already playing
-    if (amb?.tracks.length && !this.playing(amb)) engine.playPlaylist(amb, { fade: Math.max(1.5, pl.crossfade ?? 3) });
     engine.playPlaylist(pl, opts);
     bus.emit('playlist:started', pl);
   },
-  /** Stop an ambience playlist (music stops with Fade all or the transport). */
-  stop(id, fade = 2) {
-    const pl = this.get(id);
-    if (pl && this.playing(pl)) engine.deckFor(pl).stop(fade);
+  stop(id, fade = 1.5) {
+    if (this.playing(this.get(id))) engine.music.stop(fade);
   },
 };
 
@@ -152,7 +127,7 @@ export function startPlaylistKey(n) {
     bus.emit('toast', { message: `No playlist is on key ${n} yet. Give one a key in the Playlists pane.` });
     return;
   }
-  if (playlists.playing(pl) && engine.deckFor(pl).playing) {
+  if (playlists.playing(pl) && engine.playing) {
     bus.emit('toast', { message: `“${pl.name}” is already playing.` });
     return;
   }
@@ -167,7 +142,7 @@ bus.on('library:removed', (id) => {
   state.update('playlists', (d) => {
     for (const pl of d.list) {
       pl.tracks = pl.tracks.filter((t) => t !== id);
-      pl.ambience = pl.ambience.filter((a) => a.id !== id);
+      if (pl.ambience) pl.ambience = pl.ambience.filter((a) => a.id !== id);
     }
   });
 });

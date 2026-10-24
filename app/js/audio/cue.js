@@ -1,5 +1,6 @@
-// The preview (headphones) button the sound library and the playlists share, and the words for where
-// a preview plays: on the output chosen in Settings, Audio, or through the main output with everything else.
+// The small per-sound buttons the sound library and the playlists share: preview (headphones), and on
+// top (play just this sound over whatever is playing). Also the words for where a preview plays: on the
+// output chosen in Settings, Audio, or through the main output with everything else.
 import { h, icon, setIcon } from '../core/dom.js';
 import { state } from '../core/state.js';
 import { engine } from './engine.js';
@@ -24,7 +25,23 @@ export function previewButton(sound) {
   return btn;
 }
 
-/** Bring the preview buttons under root up to date (on 'audio' and 'audio:route'). */
+function dressOnTop(btn, sound, on) {
+  btn.classList.toggle('is-on', on);
+  btn.setAttribute('aria-pressed', String(on));
+  btn.title = on ? `Stop ${sound.name} (playing on top)` : 'Play on top of what is playing';
+  btn.setAttribute('aria-label', on ? `Stop ${sound.name} on top` : `Play ${sound.name} on top`);
+  setIcon(btn.querySelector('svg'), on ? 'stop' : 'layers');
+}
+
+/** Play the sound over whatever is playing, or stop it if it is already on top. */
+export function onTopButton(sound) {
+  const btn = h('button', { class: 'btn-icon btn-sm ontop-btn', type: 'button', 'data-ontop': sound.id, 'data-name': sound.name, onclick: () => engine.toggleLayer(sound.id) }, icon('layers'));
+  dressOnTop(btn, sound, engine.layerOn(sound.id));
+  return btn;
+}
+
+/** Bring the preview and on-top buttons under root up to date (on 'audio' and 'audio:route'). */
 export function syncPreviewButtons(root) {
   for (const btn of root.querySelectorAll('.cue-btn')) dress(btn, engine.previewing(btn.dataset.cue));
+  for (const btn of root.querySelectorAll('.ontop-btn')) dressOnTop(btn, { name: btn.dataset.name || 'it' }, engine.layerOn(btn.dataset.ontop));
 }

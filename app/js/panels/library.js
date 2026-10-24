@@ -9,7 +9,7 @@ import { library, KIND_LABEL } from '../core/library.js';
 import { openDialog, showMenu, toast } from '../core/ui.js';
 import { fmtTime, parseTime, hostOf } from '../core/util.js';
 import { engine } from '../audio/engine.js';
-import { previewButton, syncPreviewButtons } from '../audio/cue.js';
+import { previewButton, onTopButton, syncPreviewButtons } from '../audio/cue.js';
 import { board, ROWS } from '../audio/board.js';
 import { playlists } from '../audio/playlists.js';
 import { createEditor } from './editor.js';
@@ -112,18 +112,18 @@ export default function createLibrary({ el, getState, setState, workspace }) {
         label, h('span', { class: 'count' }, String(c[k]))));
     }
   }
+  // Music and ambience play on the deck, ending what was playing (the on-top button plays one over it);
+  // an effect is a one-shot over everything, like a pad.
   function playState(s) {
-    if (s.kind === 'ambience') return engine.layerOn(s.id);
-    if (s.kind === 'music') return engine.music.voice?.sound.id === s.id && engine.music.voice.state === 'playing';
-    return [...engine.pads.values()].some((set) => [...set].some((v) => v.sound.id === s.id));
+    if (s.kind === 'effect') return [...engine.pads.values()].some((set) => [...set].some((v) => v.sound.id === s.id));
+    return engine.music.voice?.sound.id === s.id && engine.music.voice.state === 'playing';
   }
   function playForTable(s) {
-    if (s.kind === 'ambience') engine.toggleLayer(s.id, { volume: 0.8 });
-    else if (s.kind === 'music') {
-      if (engine.music.voice?.sound.id === s.id) engine.togglePlay(); else engine.playSingle(s);
-    } else engine.firePad(`lib:${s.id}`, { sound: s.id, mode: 'once' });
+    if (s.kind === 'effect') engine.firePad(`lib:${s.id}`, { sound: s.id, mode: 'once' });
+    else if (engine.music.voice?.sound.id === s.id) engine.togglePlay();
+    else engine.playSingle(s);
   }
-  const PLAY_HINT = { music: 'Play on the music deck', ambience: 'Start or stop as an ambience layer', effect: 'Play once' };
+  const PLAY_HINT = { music: 'Play, ending what is playing', ambience: 'Play, ending what is playing', effect: 'Play once, over everything' };
 
   const matches = (s, term) => !term || s.name.toLowerCase().includes(term) || (s.tags || []).some((t) => t.toLowerCase().includes(term));
 
@@ -206,6 +206,7 @@ export default function createLibrary({ el, getState, setState, workspace }) {
         h('span', { class: 'truncate' }, s.name),
         h('span', { class: 'meta truncate' }, [KIND_LABEL[s.kind], s.flags?.length ? `${s.flags.length} ${s.flags.length === 1 ? 'flag' : 'flags'}` : null, s.repeat === 0 ? 'loops' : s.repeat > 1 ? `plays ${s.repeat}×` : null, s.status === 'analyzing' ? 'reading…' : null].filter(Boolean).join(' · '))),
       h('span', { class: 'lb-dur num' }, fmtTime(s.duration)),
+      s.kind === 'effect' ? null : onTopButton(s),
       previewButton(s));
       return row;
     }
@@ -214,18 +215,14 @@ export default function createLibrary({ el, getState, setState, workspace }) {
   function rowMenu(s, at) {
     const bank = board.active();
     const empty = ROWS.slice(1).flatMap((r) => r.keys).filter((k) => !board.reserved(k) && !bank.pads[k]).slice(0, 14);
-    // an ambience sound joins a music playlist as a layer; on the website a playlist's tracks are its
-    // folder's files, so there only layers can be added
-    const lists = playlists.list().flatMap((pl) => {
-      const layer = pl.kind !== 'ambience' && s.kind === 'ambience';
-      if (!layer && (SITE || (pl.kind === 'ambience') !== (s.kind === 'ambience'))) return [];
-      return [{ label: pl.name, hint: layer ? 'as a layer' : pl.kind === 'ambience' ? 'ambience' : '', onClick: () => {
-        if (layer) playlists.addAmbience(pl.id, [s.id]); else playlists.addTracks(pl.id, [s.id]);
-        toast(`Added to ${pl.name}.`, { type: 'ok' });
-      } }];
-    });
+    // on the website a playlist's tracks are its folder's files (move the sound there instead)
+    const lists = SITE ? [] : playlists.list().filter((pl) => (pl.kind === 'ambience') === (s.kind === 'ambience')).map((pl) => ({ label: pl.name, onClick: () => {
+      playlists.addTracks(pl.id, [s.id]);
+      toast(`Added to ${pl.name}.`, { type: 'ok' });
+    } }));
     showMenu(at, [
       { label: PLAY_HINT[s.kind], icon: 'play', onClick: () => playForTable(s) },
+      s.kind === 'effect' ? null : { label: engine.layerOn(s.id) ? 'Stop it on top' : 'Play on top of what is playing', icon: engine.layerOn(s.id) ? 'stop' : 'layers', onClick: () => engine.toggleLayer(s.id) },
       { label: engine.previewing(s.id) ? 'Stop the preview' : 'Preview', icon: 'headphones', hint: engine.previewRoute === 'device' ? 'only you' : '', onClick: () => engine.togglePreview(s) },
       { label: 'Open in the editor', icon: 'edit', onClick: () => select(s.id) },
       lists.length ? { label: 'Add to a playlist', icon: 'playlist', submenu: lists } : null,

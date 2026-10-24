@@ -1,9 +1,11 @@
 // The audio engine. One AudioContext, three buses (music, ambience, effects) into a duck stage,
 // a master fader and a safety limiter. It runs on its own, so rearranging panes never stops a sound.
 //
-//   music:    one deck playing a music playlist (or a single track), crossfading between tracks
-//   ambience: a second deck for ambience playlists, and any number of looping layers, each with its own level
+//   the deck: one playlist (music or ambience) or a single track at a time, crossfading between
+//             tracks; starting another ends the one before
+//   on top:   any number of sounds played over the deck on purpose, each with its own level (layers)
 //   effects:  soundboard pads (once / overlap / toggle loop), from any flag to the next
+// A sound plays on the bus of its kind (music, ambience, effects), wherever it was started from.
 //
 // Short files (two minutes or less) are decoded into memory and start instantly; longer ones stream
 // through <audio> elements so an hour of rain never sits in RAM.
@@ -22,6 +24,8 @@ const BUFFER_CACHE_MAX = IOS ? 24 : 80;
 
 let ctx = null;
 const levelToGain = (v) => clamp(v, 0, 1.25) ** 2;
+const BUS = { music: 'music', ambience: 'ambience', effect: 'effects' };
+const busOf = (sound) => BUS[sound.kind] || 'music';
 
 // ---------------------------------------------------------------------------
 // Voices
@@ -319,16 +323,12 @@ class BufferVoice extends Voice {
 // ---------------------------------------------------------------------------
 
 /**
- * A playlist playing track after track, crossfading between them. The music deck plays music playlists
- * and the ambience deck ambience playlists, each on its own bus, so a scene's music, its ambience and
- * the pads all play at once. On the ambience deck each track plays once per pass (ambience files are
- * set to loop forever) and the deck's repeat decides what comes next.
+ * A playlist playing track after track, crossfading between them. A sound set to loop forever (ambience
+ * is, by default) plays once per pass here, and the deck's repeat decides what comes next.
  */
 class Deck {
-  constructor(engine, busName, { once = false } = {}) {
+  constructor(engine) {
     this.engine = engine;
-    this.bus = busName;
-    this.once = once;
     this.voice = null;
     this.playlistId = null;
     this.queue = [];
@@ -366,7 +366,7 @@ class Deck {
     this.playlistId = null;
     this.queue = [sound.id];
     this.order = [sound.id];
-    this.repeat = 'off';
+    this.repeat = sound.kind === 'ambience' ? 'one' : 'off';     // ambience keeps going until stopped
     this.playAt(0, { fade });
   }
 
@@ -375,8 +375,8 @@ class Deck {
     const s = id && library.get(id);
     if (!s) return;
     const old = this.voice;
-    const v = this.engine.voice(s, this.bus, {
-      ...(this.once ? { repeat: 1, loopFade: 0 } : {}),
+    const v = this.engine.voice(s, busOf(s), {
+      ...(s.repeat === 0 ? { repeat: 1, loopFade: 0 } : {}),
       fadeIn: old ? Math.max(fade, 0.05) : (s.fadeIn || 0.05),
       onEnd: (voice) => this.ended(voice),
       onApproach: { lead: Math.max(0.1, this.crossfade), run: (voice) => this.approaching(voice) },
@@ -477,9 +477,8 @@ class Engine {
     this.voices = new Set();
     this.buses = {};
     this.buffers = new Map();
-    this.music = new Deck(this, 'music');
-    this.ambience = new Deck(this, 'ambience', { once: true });   // ambience playlists
-    this.layers = new Map();      // soundId -> {voice, volume}
+    this.music = new Deck(this);  // the deck: whatever playlist or track is playing
+    this.layers = new Map();      // sounds on top: soundId -> {voice, volume}
     this.pads = new Map();        // pad key -> Set<Voice>
     this.ducked = false;
     this.preview = null;
@@ -608,27 +607,21 @@ class Engine {
     return v;
   }
 
-  // ---- decks ----------------------------------------------------------------
-  // The music deck plays music playlists; the ambience deck plays ambience playlists under it.
-  // The engine's own transport (togglePlay, next, prev, seek, ...) is the music deck's.
+  // ---- the deck ----------------------------------------------------------------
+  // One playlist or track at a time: starting one ends the one before. Sounds on top stay.
   get track() { return this.music.track; }
   get playing() { return this.music.playing; }
   playlist() { return this.music.playlist(); }
-  deckFor(pl) { return pl?.kind === 'ambience' ? this.ambience : this.music; }
 
   playPlaylist(pl, opts = {}) {
-    if (!pl) return;
-    const deck = this.deckFor(pl);
-    // A music playlist with layers replaces the layers; one without leaves whatever is playing.
-    if (deck === this.music && (pl.ambience || []).length) this.setAmbience(pl.ambience, { fade: Math.max(1.5, pl.crossfade ?? state.get('settings').crossfade) });
-    deck.play(pl, opts);
+    if (pl) this.music.play(pl, opts);
   }
   playSingle(sound, opts) { this.music.playSingle(sound, opts); }
 
   togglePlay() {
     this.init();
     if (this.music.toggle()) return;
-    const pl = state.get('playlists').list.find((p) => p.kind !== 'ambience' && p.tracks?.length);
+    const pl = state.get('playlists').list.find((p) => p.tracks?.length);
     if (pl) this.playPlaylist(pl);
     else bus.emit('toast', { message: 'No music to play yet. Make a playlist or play a track from the library.' });
   }
@@ -672,22 +665,24 @@ class Engine {
     if (before.length) this.jumpTo(before[before.length - 1].t); else v.seek(0);
   }
 
-  // ---- ambience ----------------------------------------------------------------
+  // ---- sounds on top ----------------------------------------------------------------
+  // Started on purpose (a track's on-top button), over whatever the deck plays. Each plays as the sound
+  // is set: ambience loops until stopped, music plays once.
   layerOn(id) { return this.layers.has(id); }
-  startLayer(id, { volume = 1, fade = 2 } = {}) {
+  startLayer(id, { volume = 1, fade } = {}) {
     const s = library.get(id);
     if (!s || this.layers.has(id)) return;
-    const v = this.voice(s, 'ambience', {
+    const v = this.voice(s, busOf(s), {
       volume,
-      repeat: s.repeat ?? 0,
-      fadeIn: Math.max(fade, s.fadeIn || 0),
+      repeat: s.repeat ?? (s.kind === 'ambience' ? 0 : 1),
+      fadeIn: Math.max(fade ?? (s.kind === 'ambience' ? 2 : 0.3), s.fadeIn || 0),
       onEnd: () => { if (this.layers.get(id)?.voice === v) { this.layers.delete(id); this.changed(); } },
     });
     this.layers.set(id, { voice: v, volume });
     this.startVoice(v);
     this.changed();
   }
-  stopLayer(id, fade = 2) {
+  stopLayer(id, fade = 1.5) {
     const l = this.layers.get(id);
     if (!l) return;
     l.voice.stop(fade);
@@ -700,14 +695,6 @@ class Engine {
     if (!l) return;
     l.volume = volume;
     l.voice.setVolume(volume);
-  }
-  setAmbience(list, { fade = 2.5 } = {}) {
-    const want = new Map(list.filter((a) => library.has(a.id)).map((a) => [a.id, a.volume ?? 1]));
-    for (const id of [...this.layers.keys()]) if (!want.has(id)) this.stopLayer(id, fade);
-    for (const [id, vol] of want) {
-      if (this.layers.has(id)) this.setLayerVolume(id, vol);
-      else this.startLayer(id, { volume: vol, fade });
-    }
   }
 
   // ---- effects (pads) -----------------------------------------------------------
@@ -752,10 +739,32 @@ class Engine {
     this.changed();
   }
   effectCount() { let n = 0; for (const set of this.pads.values()) n += set.size; return n; }
+  stopPadVoice(v, fade = 0.2) {
+    for (const set of this.pads.values()) set.delete(v);
+    v.stop(fade);
+    this.changed();
+  }
+
+  /** Everything audible, for the Console: the deck's track, the sounds on top, and pads that last
+   *  (a quick hit is over before it could be read). [{voice, role: 'deck' | 'top' | 'pad', id, where}] */
+  playingNow() {
+    const out = [];
+    const live = (v) => v && v.state !== 'stopped' && v.state !== 'stopping';
+    const m = this.music;
+    if (live(m.voice)) out.push({ voice: m.voice, role: 'deck', id: m.voice.sound.id, where: m.playlist()?.name || 'on its own' });
+    for (const [id, l] of this.layers) if (live(l.voice)) out.push({ voice: l.voice, role: 'top', id, where: 'on top' });
+    for (const [key, set] of this.pads) {
+      for (const v of set) {
+        if (!live(v) || (v.repeat !== 0 && v.length < 4)) continue;
+        out.push({ voice: v, role: 'pad', id: v.sound.id, where: key.startsWith('lib:') ? 'effect' : `pad ${key.split(':').pop()}` });
+      }
+    }
+    return out;
+  }
 
   // ---- everything ---------------------------------------------------------------
   fadeAll(seconds = state.get('settings').fadeAll) {
-    for (const deck of [this.music, this.ambience]) if (deck.voice) { deck.voice.stop(seconds); deck.voice = null; }
+    if (this.music.voice) { this.music.voice.stop(seconds); this.music.voice = null; }
     for (const id of [...this.layers.keys()]) this.stopLayer(id, seconds);
     this.stopEffects(Math.min(seconds, 0.8));
     if (this.previewRoute !== 'device') this.stopPreview();     // a preview in your headphones isn't the table's
@@ -880,14 +889,10 @@ export const engine = new Engine();
 // A sound or folder has a new id (renamed or moved on the website): follow it everywhere it plays.
 bus.on('library:moved', ({ from, to }) => {
   const map = (id) => (id === from || String(id).startsWith(`${from}/`) ? to + String(id).slice(from.length) : id);
-  for (const deck of [engine.music, engine.ambience]) {
-    deck.queue = deck.queue.map(map);
-    deck.order = deck.order.map(map);
-    if (deck.playlistId) deck.playlistId = map(deck.playlistId);
-    // a playlist moved to the other kind (Music to Ambience) isn't this deck's any more; its track plays on
-    const pl = deck.playlist();
-    if (pl && engine.deckFor(pl) !== deck) deck.playlistId = null;
-  }
+  const deck = engine.music;
+  deck.queue = deck.queue.map(map);
+  deck.order = deck.order.map(map);
+  if (deck.playlistId) deck.playlistId = map(deck.playlistId);
   for (const [id, l] of [...engine.layers]) {
     if (map(id) === id) continue;
     engine.layers.delete(id);
@@ -903,6 +908,6 @@ bus.on('library:moved', ({ from, to }) => {
 
 // Keep the deck honest when a sound is deleted or edited.
 bus.on('library:removed', (id) => {
-  for (const deck of [engine.music, engine.ambience]) if (deck.voice?.sound.id === id) deck.stop(0.3);
+  if (engine.music.voice?.sound.id === id) engine.music.stop(0.3);
   if (engine.layers.has(id)) engine.stopLayer(id, 0.3);
 });

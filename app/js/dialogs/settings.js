@@ -276,7 +276,7 @@ function githubView(view, saved) {
     h('a', { class: 'btn btn-ghost', href: site.links.howTo, target: '_blank', rel: 'noopener' }, icon('help'), 'How adding sounds works'));
   const connectBox = h('div', { class: 'st-panel' });
   view.append(
-    section('Sounds on GitHub', `The screen plays the audio files in ${REPO}/sounds. Each folder in Music is a playlist, in Ambience an ambience playlist that plays under the music (and starts with the playlist of the same name), in Effects a bank of pads.`,
+    section('Sounds on GitHub', `The screen plays the audio files in ${REPO}/sounds. Each folder in Music is a playlist, in Ambience an ambience playlist, in Effects a bank of pads.`,
       folders,
       h('p', { class: 'field-hint' }, `${library.list().length} sounds published${pub.built ? `, last ${when(pub.built * 1000)}` : ''}. A new upload takes about a minute to appear.`)),
     section('Connect this device', 'Once per device. It lets the screen rename and move sounds, make folders, and keep flags, pads and playlist keys the same on every device. Without it everything still plays, and changes stay on this device.', connectBox),

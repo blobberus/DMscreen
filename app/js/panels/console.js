@@ -1,7 +1,7 @@
 // Console: the screen's answer to "what is playing, and what can I fire next?"
-// Now playing with its flag strip (click a flag or press Alt+Shift+1..9), the transport, the ambience
-// playlist playing under it, the playlist keys, and the mixer with a strip for every ambience layer
-// that is running.
+// Now playing with its flag strip (click a flag or press Alt+Shift+1..9), the transport, a list of
+// everything playing (the track, sounds on top, long pads) with a stop for each, the playlist keys, and
+// the mixer with a strip for every sound on top.
 import { h, icon, clear, setIcon } from '../core/dom.js';
 import { bus } from '../core/bus.js';
 import { keys } from '../core/keys.js';
@@ -46,21 +46,14 @@ export default function createConsole({ el }) {
       shuffleBtn, repeatBtn),
     upNext);
   const flagList = h('div', { class: 'cn-flags', role: 'list' });
-  // the ambience playlist on its own deck, under the music
-  const ambNow = h('span', { class: 'cn-ambnow truncate' });
-  const ambPlayIcon = icon('pause', 'icon-sm');
-  const ambPlay = h('button', { class: 'btn-icon btn-sm', type: 'button', onclick: () => engine.ambience.toggle() }, ambPlayIcon);
-  const ambLine = h('div', { class: 'cn-ambline' },
-    h('span', { class: 'cn-h' }, 'Ambience'), ambNow,
-    h('span', { class: 'cn-ambctl' },
-      ambPlay,
-      h('button', { class: 'btn-icon btn-sm', type: 'button', title: 'Next ambience track', 'aria-label': 'Next ambience track', onclick: () => engine.ambience.next() }, icon('next', 'icon-sm')),
-      h('button', { class: 'btn-icon btn-sm', type: 'button', title: 'Stop the ambience playlist', 'aria-label': 'Stop the ambience playlist', onclick: () => engine.ambience.stop(2) }, icon('stop', 'icon-sm'))));
+  const playingList = h('div', { class: 'cn-playing', role: 'list', 'aria-label': 'Everything playing' });
   const plRow = h('div', { class: 'cn-playlists' });
   const ambRow = h('div', { class: 'cn-playlists' });
   const now = h('section', { class: 'cn-now', 'aria-label': 'Now playing' },
     h('div', { class: 'cn-head' }, h('div', { class: 'cn-titles' }, context, track), h('div', { class: 'cn-clock' }, pos, len)),
-    strip, transport, flagList, ambLine,
+    strip, transport,
+    h('div', { class: 'cn-plwrap cn-playwrap' }, h('h3', { class: 'cn-h' }, 'Playing'), playingList),
+    flagList,
     h('div', { class: 'cn-plwrap' }, h('h3', { class: 'cn-h' }, 'Playlists'), plRow),
     h('div', { class: 'cn-plwrap' }, h('h3', { class: 'cn-h' }, 'Ambience'), ambRow));
 
@@ -125,7 +118,8 @@ export default function createConsole({ el }) {
     }
     const two = rows[1] > -1e9;
     flagLayer.classList.toggle('has-two-rows', two);
-    strip.style.paddingTop = `${two ? 46 : 24}px`;
+    // no flags, no room kept for their labels: the Playing list moves up instead
+    strip.style.paddingTop = `${!flagLayer.children.length ? 4 : two ? 46 : 24}px`;
     // each label's leader drops to the top of the waveform, where the canvas draws the rest of the line
     for (const b of flagLayer.children) b.style.setProperty('--drop', `${(two ? 46 : 24) - 20 - Number(b.dataset.row) * 22}px`);
   }
@@ -148,11 +142,11 @@ export default function createConsole({ el }) {
     repeatBtn.setAttribute('aria-pressed', String(engine.music.repeat !== 'off'));
     repeatBtn.title = REPEAT[engine.music.repeat] || 'Repeat';
     renderPlaylists();
-    renderAmbience();
+    renderPlaying();
     strip.hidden = !s;
     if (!s) {
       now.classList.add('is-stopped');
-      track.textContent = pl ? `${pl.name} is stopped` : engine.ambience.voice ? 'No music' : 'Nothing playing';
+      track.textContent = pl ? `${pl.name} is stopped` : engine.layers.size ? 'Only sounds on top' : 'Nothing playing';
       context.textContent = pl ? 'Alt+P plays it again from this track.' : 'Start a playlist below or with Alt+1 to 9.';
       pos.textContent = '';
       len.textContent = '';
@@ -199,6 +193,7 @@ export default function createConsole({ el }) {
     });
   }
   function tick() {
+    tickPlaying();
     const v = engine.music.voice;
     if (!v) return;
     pos.textContent = fmtTime(v.position);
@@ -209,28 +204,46 @@ export default function createConsole({ el }) {
     flags.forEach((f, i) => { if (f.t <= now + 0.05) current = i; });
     [...flagList.querySelectorAll('.cn-flagbtn')].forEach((b, i) => b.classList.toggle('is-current', i === current));
   }
-  function renderAmbience() {
-    const d = engine.ambience;
-    const v = d.voice;
-    ambLine.hidden = !v;
-    if (!v) return;
-    const apl = d.playlist();
-    ambNow.replaceChildren(apl ? h('span', { class: 'cn-ambpl' }, `${apl.name} · `) : '', v.sound.name);
-    const paused = v.state === 'paused';
-    setIcon(ambPlayIcon, paused ? 'play' : 'pause');
-    ambPlay.title = paused ? 'Resume the ambience playlist' : 'Pause the ambience playlist';
-    ambPlay.setAttribute('aria-label', ambPlay.title);
+  // ---- everything playing ------------------------------------------------------------
+  const KIND = { music: 'Music', ambience: 'Ambience', effect: 'Effect' };
+  let playingRows = [];
+  function renderPlaying() {
+    clear(playingList);
+    playingRows = [];
+    const items = engine.playingNow();
+    if (!items.length) {
+      playingList.append(h('p', { class: 'meta cn-pnone' }, 'Nothing is playing. Start a playlist below, or put a sound on top with a track’s layers button in the Playlists pane.'));
+      return;
+    }
+    for (const it of items) {
+      const v = it.voice;
+      const name = v.sound.name;
+      const time = h('span', { class: 'cn-ptime time' });
+      const stop = () => (it.role === 'deck' ? engine.stopMusic(1) : it.role === 'top' ? engine.stopLayer(it.id) : engine.stopPadVoice(v));
+      const paused = v.state === 'paused';
+      playingList.append(h('div', { class: `cn-prow is-${it.role} ${paused ? 'is-paused' : ''}`, role: 'listitem' },
+        h('span', { class: 'cn-pkind meta' }, KIND[v.sound.kind] || 'Sound'),
+        h('span', { class: 'cn-pname truncate', title: name }, name),
+        h('span', { class: 'cn-pwhere meta truncate' }, paused ? `${it.where} · paused` : it.where),
+        time,
+        it.role === 'deck' ? h('button', { class: 'btn-icon btn-sm', type: 'button', title: paused ? 'Resume' : 'Pause', 'aria-label': `${paused ? 'Resume' : 'Pause'} ${name}`, onclick: () => engine.togglePlay() }, icon(paused ? 'play' : 'pause', 'icon-sm')) : null,
+        h('button', { class: 'btn-icon btn-sm', type: 'button', title: `Stop ${name}`, 'aria-label': `Stop ${name}`, onclick: stop }, icon('stop', 'icon-sm'))));
+      playingRows.push({ v, time });
+    }
+    tickPlaying();
   }
+  function tickPlaying() {
+    for (const { v, time } of playingRows) time.textContent = v.repeat === 0 ? `${fmtTime(v.position)} · loops` : `${fmtTime(v.position)} / ${fmtTime(v.length)}`;
+  }
+
   function renderPlaylists() {
     clear(ambRow);
     const amb = playlists.ofKind('ambience').sort((a, b) => (a.key || 99) - (b.key || 99));
     if (!amb.length) ambRow.append(h('p', { class: 'meta' }, 'No ambience playlists yet. Make one in the Playlists pane.'));
-    // a tap starts one under the music; tapping the one that is playing stops it
     for (const pl of amb) {
-      const playing = playlists.playing(pl);
       ambRow.append(h('button', {
-        class: `cn-pl ${playing ? 'is-selected' : ''}`, type: 'button', title: playing ? `Stop ${pl.name}` : `Start ${pl.name} under the music${pl.key ? ` (Alt+${pl.key})` : ''}`,
-        onclick: () => (playing ? playlists.stop(pl.id) : playlists.play(pl.id)),
+        class: `cn-pl ${playlists.playing(pl) ? 'is-selected' : ''}`, type: 'button', title: `Start ${pl.name}, ending what is playing${pl.key ? ` (Alt+${pl.key})` : ''}`,
+        onclick: () => playlists.play(pl.id),
       }, pl.key ? h('kbd', { class: 'kbd' }, String(pl.key)) : null, h('span', { class: 'truncate' }, pl.name)));
     }
     clear(plRow);
@@ -245,11 +258,10 @@ export default function createConsole({ el }) {
     plRow.classList.toggle('is-list', idle);
     if (idle) {
       for (const pl of sorted) {
-        const amb = [playlists.ambienceFor(pl)?.name, ...pl.ambience.map((a) => library.get(a.id)?.name)].filter(Boolean);
         plRow.append(h('button', { class: 'cn-plrow', type: 'button', title: `Start ${pl.name}${pl.key ? ` (Alt+${pl.key})` : ''}`, onclick: () => playlists.play(pl.id) },
           pl.key ? h('kbd', { class: 'kbd' }, String(pl.key)) : h('span', { class: 'kbd is-blank' }, '–'),
           h('span', { class: 'cn-plname truncate' }, pl.name),
-          h('span', { class: 'meta truncate' }, [`${pl.tracks.length} ${pl.tracks.length === 1 ? 'track' : 'tracks'}`, fmtDuration(playlists.duration(pl)), amb.length ? `with ${amb.join(', ')}` : null].filter(Boolean).join(' · ')),
+          h('span', { class: 'meta truncate' }, `${pl.tracks.length} ${pl.tracks.length === 1 ? 'track' : 'tracks'} · ${fmtDuration(playlists.duration(pl))}`),
           icon('play', 'icon-sm')));
       }
       return;
@@ -285,7 +297,7 @@ export default function createConsole({ el }) {
         f.el, val,
         h('button', { class: 'btn-icon btn-sm', type: 'button', title: `Stop ${s?.name || 'this layer'}`, 'aria-label': `Stop ${s?.name || 'layer'}`, onclick: () => engine.stopLayer(id) }, icon('close')));
     });
-    const none = h('p', { class: 'meta cn-nolayers' }, 'No ambience layers running. Start one from a playlist or the library.');
+    const none = h('p', { class: 'meta cn-nolayers' }, 'Nothing on top. A track’s layers button plays a sound over what is playing; its level shows here.');
     if (!vertical) {
       strips.append(busStrip('music', 'Music', false, vertical), busStrip('ambience', 'Ambience', false, vertical),
         busStrip('effects', 'Effects', false, vertical), busStrip('master', 'Master', true, vertical), ...layerStrips);
