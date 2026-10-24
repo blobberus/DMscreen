@@ -4,8 +4,8 @@
  "playlists": {
   "list": [
    {
-    "id": "Music/01 Amb-Tavern",
-    "dir": "Music/01 Amb-Tavern",
+    "id": "Music/01 Tavern",
+    "dir": "Music/01 Tavern",
     "ambience": [],
     "seenAmbience": [],
     "shuffle": false,
