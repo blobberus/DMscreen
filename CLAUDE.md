@@ -84,7 +84,9 @@ tools/shrink_sounds.py  cuts long recordings to upload-sized MP3s (20 min from 3
 - Performance: per-frame code ('audio:tick') writes to the DOM only when what it shows changes, moves
   progress bars and the playhead with transforms, never reads layout (the waveform's size comes from a
   ResizeObserver), and skips hidden panels. This took playback from ~800 layouts / 900 ms of work per
-  5 s to ~10 / 80 ms. The build adds modulepreload links for main.js's static imports.
+  5 s to ~10 / 80 ms. The build adds modulepreload links for main.js's static imports. The Console's
+  Playing bars and the pads' progress lines step in whole pixels (widths from ResizeObservers): short
+  pads redrew every frame in thousandths. `will-change` on those bars measured slower, so it isn't used.
   `playingNow()` lists deck + on top + every pad voice for the Console's Playing list (each row scrubs with
   `seekItem`, pauses with `togglePauseItem`, and loops a top/pad sound with `setLooping`, which sets the
   voice's repeat live: MediaVoice re-arms its end, BufferVoice restarts its source where it is). Every voice has its own low-pass BiquadFilter; `setLowpass(0..1)` sweeps the ones switched

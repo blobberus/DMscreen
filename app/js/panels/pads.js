@@ -47,6 +47,9 @@ export default function createPads({ el }) {
   const pickLayout = () => ((root.clientWidth || 1000) >= BOARD_LAYOUTS.full.minWidth ? 'full' : 'letters');
   el.append(root);
   const padEls = new Map();
+  // a pad's progress line moves in whole pixels of the pad's width, measured when the board resizes
+  let padW = 0;
+  new ResizeObserver(() => { const first = padEls.values().next().value; if (first?.btn.offsetWidth) padW = first.btn.offsetWidth; }).observe(boardEl);
 
   // ---- banks -------------------------------------------------------------------
   function renderBanks() {
@@ -203,7 +206,8 @@ export default function createPads({ el }) {
     const bank = board.active();
     for (const [key, pad] of padEls) {
       const live = board.live(key, bank);
-      const p = live.playing ? Math.round(live.progress * 500) / 500 : -1;
+      const px = padW || 500;
+      const p = live.playing ? Math.round(live.progress * px) / px : -1;
       if (pad.p === p) continue;
       if ((pad.p >= 0) !== live.playing) pad.btn.classList.toggle('is-playing', live.playing);
       pad.p = p;

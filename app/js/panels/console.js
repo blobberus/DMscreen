@@ -259,6 +259,9 @@ export default function createConsole({ el }) {
   // A row per sound, each with a scrub bar: click or drag it (or use the arrow keys) to move that sound.
   // Rows are rebuilt only when what plays changes, so a drag isn't cut short by its own seek.
   const KIND = { music: 'Music', ambience: 'Ambience', effect: 'Effect' };
+  // the bars move in whole pixels: a pad's bar redrawn in thousandths changed on every frame for nothing
+  let barW = 0;
+  new ResizeObserver(() => { if (playingList.clientWidth) barW = playingList.clientWidth; }).observe(playingList);
   let playingRows = [];
   let playingKey = null;
   function renderPlaying() {
@@ -310,13 +313,17 @@ export default function createConsole({ el }) {
     const el = h('div', { class: 'cn-pbar', role: 'slider', tabindex: 0, 'aria-label': `Position in ${v.sound.name}`, 'aria-valuemin': 0 }, fill);
     let dragging = false;
     let shown = -1;
+    let said = -1;
     const at = (e) => { const r = el.getBoundingClientRect(); return clamp((e.clientX - r.left) / r.width, 0, 1) * v.length; };
     const show = (pos) => {
-      const f = v.length > 0 ? Math.round((pos / v.length) * 1000) / 1000 : 0;
+      const px = barW || 1000;
+      const f = v.length > 0 ? Math.round((pos / v.length) * px) / px : 0;
       if (f === shown) return;
       shown = f;
       fill.style.transform = `scaleX(${f})`;
-      el.setAttribute('aria-valuenow', Math.round(pos));
+      // a short sound's bar moves every frame; the whole second it reads out changes once a second
+      const s = Math.round(pos);
+      if (s !== said) { said = s; el.setAttribute('aria-valuenow', s); }
     };
     el.addEventListener('pointerdown', (e) => {
       dragging = true;
