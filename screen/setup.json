@@ -186,6 +186,13 @@
       "mode": "once",
       "from": null,
       "toNextFlag": false
+     },
+     "W": {
+      "sound": "Effects/fx/Thunder.mp3",
+      "label": "Thunder",
+      "mode": "once",
+      "from": null,
+      "toNextFlag": false
      }
     },
     "seen": [],
