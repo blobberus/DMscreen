@@ -22,12 +22,12 @@
     "shuffle": false,
     "repeat": "all",
     "crossfade": 3,
-    "name": "Amb-Outdoor",
+    "name": "Calm Explore",
     "key": 2
    },
    {
-    "id": "Music/03 Amb-Civilization",
-    "dir": "Music/03 Amb-Civilization",
+    "id": "Music/03 Combat",
+    "dir": "Music/03 Combat",
     "ambience": [],
     "seenAmbience": [],
     "shuffle": false,
