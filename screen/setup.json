@@ -167,7 +167,15 @@
    {
     "id": "Effects/Misc",
     "dir": "Effects/Misc",
-    "pads": {},
+    "pads": {
+     "Q": {
+      "sound": "Effects/fx/Bell Tower.mp3",
+      "label": "Bell Tower",
+      "mode": "once",
+      "from": null,
+      "toNextFlag": false
+     }
+    },
     "seen": [],
     "name": "Misc"
    },
