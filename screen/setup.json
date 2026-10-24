@@ -119,6 +119,45 @@
     "name": "Creatures"
    },
    {
+    "id": "Effects/fx",
+    "dir": "Effects/fx",
+    "pads": {
+     "Q": {
+      "sound": "Effects/fx/Bell Tower.mp3",
+      "mode": "once",
+      "volume": 1
+     },
+     "W": {
+      "sound": "Effects/fx/Crow.mp3",
+      "mode": "once",
+      "volume": 1
+     },
+     "E": {
+      "sound": "Effects/fx/Rock Rolling.mp3",
+      "mode": "once",
+      "volume": 1
+     },
+     "R": {
+      "sound": "Effects/fx/Shifting Stones.mp3",
+      "mode": "once",
+      "volume": 1
+     },
+     "T": {
+      "sound": "Effects/fx/Thunder.mp3",
+      "mode": "once",
+      "volume": 1
+     }
+    },
+    "seen": [
+     "Effects/fx/Bell Tower.mp3",
+     "Effects/fx/Crow.mp3",
+     "Effects/fx/Rock Rolling.mp3",
+     "Effects/fx/Shifting Stones.mp3",
+     "Effects/fx/Thunder.mp3"
+    ],
+    "name": "fx"
+   },
+   {
     "id": "Effects/Magic",
     "dir": "Effects/Magic",
     "pads": {},
