@@ -3,6 +3,9 @@
  "sounds": {
   "Ambience/Outdoors/Forest (CALM).mp3": {
    "volume": 1.5
+  },
+  "Ambience/Outdoors/Forest (NIGHT).mp3": {
+   "volume": 1.5
   }
  },
  "playlists": {
