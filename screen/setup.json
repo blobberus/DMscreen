@@ -1,0 +1,97 @@
+{
+ "version": 1,
+ "sounds": {},
+ "playlists": {
+  "list": [
+   {
+    "id": "Music/01 Tavern",
+    "dir": "Music/01 Tavern",
+    "ambience": [],
+    "seenAmbience": [],
+    "shuffle": false,
+    "repeat": "all",
+    "crossfade": 3,
+    "name": "Tavern",
+    "key": 1
+   },
+   {
+    "id": "Music/02 Exploration",
+    "dir": "Music/02 Exploration",
+    "ambience": [],
+    "seenAmbience": [],
+    "shuffle": false,
+    "repeat": "all",
+    "crossfade": 3,
+    "name": "Exploration",
+    "key": 2
+   },
+   {
+    "id": "Music/03 Combat",
+    "dir": "Music/03 Combat",
+    "ambience": [],
+    "seenAmbience": [],
+    "shuffle": false,
+    "repeat": "all",
+    "crossfade": 3,
+    "name": "Combat",
+    "key": 3
+   },
+   {
+    "id": "Music/04 Boss",
+    "dir": "Music/04 Boss",
+    "ambience": [],
+    "seenAmbience": [],
+    "shuffle": false,
+    "repeat": "all",
+    "crossfade": 3,
+    "name": "Boss",
+    "key": 4
+   },
+   {
+    "id": "Music/05 Mystery",
+    "dir": "Music/05 Mystery",
+    "ambience": [],
+    "seenAmbience": [],
+    "shuffle": false,
+    "repeat": "all",
+    "crossfade": 3,
+    "name": "Mystery",
+    "key": 5
+   }
+  ]
+ },
+ "boards": {
+  "banks": [
+   {
+    "id": "Effects/Combat",
+    "dir": "Effects/Combat",
+    "pads": {},
+    "seen": [],
+    "name": "Combat"
+   },
+   {
+    "id": "Effects/Creatures",
+    "dir": "Effects/Creatures",
+    "pads": {},
+    "seen": [],
+    "name": "Creatures"
+   },
+   {
+    "id": "Effects/Magic",
+    "dir": "Effects/Magic",
+    "pads": {},
+    "seen": [],
+    "name": "Magic"
+   },
+   {
+    "id": "Effects/World",
+    "dir": "Effects/World",
+    "pads": {},
+    "seen": [],
+    "name": "World"
+   }
+  ],
+  "active": "Effects/Combat"
+ },
+ "keymap": {}
+}
