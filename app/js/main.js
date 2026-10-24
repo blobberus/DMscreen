@@ -217,10 +217,21 @@ function longPress() {
   document.addEventListener('click', (e) => { if (swallow) { swallow = false; e.preventDefault(); e.stopPropagation(); } }, true);
 }
 
-// The website keeps working without the internet once its files are on the device (sw.js).
+// The website keeps working without the internet once its files are on the device (sw.js), and moves
+// to a new publish by itself: at once when nothing is playing, otherwise when the DM chooses to.
 function offline() {
   if (!SITE || !('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  const updating = !!navigator.serviceWorker.controller;      // the first install isn't an update
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    const look = () => reg.update().catch(() => {});
+    setInterval(look, 15 * 60 * 1000);                          // a long session still hears of a publish
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') look(); });
+  }).catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!updating) return;
+    if (!engine.anythingPlaying()) { location.reload(); return; }
+    toast('The screen was updated. Reload it between scenes to use the new version.', { timeout: 10 * 60 * 1000, action: { label: 'Reload', run: () => location.reload() } });
+  });
   navigator.storage?.persist?.().catch(() => {});
 }
 

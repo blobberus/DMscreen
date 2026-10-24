@@ -109,9 +109,12 @@ def stamp_version(out: Path):
         h.update(p.relative_to(out).as_posix().encode())
         h.update(p.read_bytes())
     q = f'?v={h.hexdigest()[:10]}'
+    sw = out / 'sw.js'
+    if sw.exists():                           # the worker keeps its address; a new BUILD makes browsers install it
+        sw.write_text(sw.read_text('utf-8').replace("const BUILD = 'dev';", f"const BUILD = '{q[3:]}';"), 'utf-8')
     for p in files:
         if p.name == 'sw.js':
-            continue                          # the service worker keeps its address
+            continue
         text = p.read_text('utf-8')
         if p.suffix == '.js':
             new = IMPORT_RE.sub(lambda m: f'{m.group(1)}{m.group(2)}{m.group(3)}{q}{m.group(2)}', text)

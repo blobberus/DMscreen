@@ -1,7 +1,7 @@
 // Console: the screen's answer to "what is playing, and what can I fire next?"
 // Now playing with its flag strip (click a flag or press Alt+Shift+1..9), the transport, a list of
-// everything playing (the track, sounds on top, long pads) with a stop for each, the playlist keys, and
-// the mixer with a strip for every sound on top.
+// everything playing (the track, sounds on top, long pads), each with its own scrub bar, low-pass switch
+// and stop, the low-pass sweep, the playlist keys, and the mixer with a strip for every sound on top.
 import { h, icon, clear, setIcon } from '../core/dom.js';
 import { bus } from '../core/bus.js';
 import { keys } from '../core/keys.js';
@@ -47,12 +47,33 @@ export default function createConsole({ el }) {
     upNext);
   const flagList = h('div', { class: 'cn-flags', role: 'list' });
   const playingList = h('div', { class: 'cn-playing', role: 'list', 'aria-label': 'Everything playing' });
+  // the low-pass sweep: 0 open .. 1 muffled, for the sounds switched into it (each row's wave button)
+  const lpVal = h('span', { class: 'num meta cn-lpval' });
+  const lpSlider = h('input', { class: 'range cn-lp', type: 'range', min: 0, max: 1, step: 0.001, value: engine.lowpass.amount, 'aria-label': 'Low-pass filter' });
+  lpSlider.addEventListener('input', () => { engine.setLowpass(Number(lpSlider.value)); syncLowpass(); });
+  lpSlider.addEventListener('dblclick', () => { engine.setLowpass(0); syncLowpass(); });
+  const lpPads = h('input', { type: 'checkbox' });
+  lpPads.addEventListener('change', () => engine.setFiltered({ role: 'pad' }, lpPads.checked));
+  const playingHead = h('div', { class: 'cn-playhd' },
+    h('h3', { class: 'cn-h' }, 'Playing'),
+    h('span', { class: 'cn-spacer' }),
+    h('label', { class: 'cn-lpwrap', title: 'Low-pass: slide right to muffle the sounds switched into it (their wave button). Double-click to open it again.' },
+      h('span', { class: 'meta' }, 'Low-pass'), lpSlider, lpVal),
+    h('label', { class: 'switch cn-lppads', title: 'Pads go through the low-pass too' }, lpPads, h('span', { class: 'meta' }, 'Pads too')));
+  function syncLowpass() {
+    const a = engine.lowpass.amount;
+    lpSlider.value = a;
+    const hz = engine.lowpassHz();
+    lpVal.textContent = a < 0.002 ? 'Open' : hz >= 1000 ? `${(hz / 1000).toFixed(1)} kHz` : `${Math.round(hz)} Hz`;
+    lpPads.checked = engine.lowpass.pads;
+  }
+  syncLowpass();
   const plRow = h('div', { class: 'cn-playlists' });
   const ambRow = h('div', { class: 'cn-playlists' });
   const now = h('section', { class: 'cn-now', 'aria-label': 'Now playing' },
     h('div', { class: 'cn-head' }, h('div', { class: 'cn-titles' }, context, track), h('div', { class: 'cn-clock' }, pos, len)),
     strip, transport,
-    h('div', { class: 'cn-plwrap cn-playwrap' }, h('h3', { class: 'cn-h' }, 'Playing'), playingList),
+    h('div', { class: 'cn-plwrap cn-playwrap' }, playingHead, playingList),
     flagList,
     h('div', { class: 'cn-plwrap' }, h('h3', { class: 'cn-h' }, 'Playlists'), plRow),
     h('div', { class: 'cn-plwrap' }, h('h3', { class: 'cn-h' }, 'Ambience'), ambRow));
@@ -205,12 +226,18 @@ export default function createConsole({ el }) {
     [...flagList.querySelectorAll('.cn-flagbtn')].forEach((b, i) => b.classList.toggle('is-current', i === current));
   }
   // ---- everything playing ------------------------------------------------------------
+  // A row per sound, each with a scrub bar: click or drag it (or use the arrow keys) to move that sound.
+  // Rows are rebuilt only when what plays changes, so a drag isn't cut short by its own seek.
   const KIND = { music: 'Music', ambience: 'Ambience', effect: 'Effect' };
   let playingRows = [];
+  let playingKey = null;
   function renderPlaying() {
+    const items = engine.playingNow();
+    const key = items.map((it) => `${it.role}:${it.voice.serial}:${it.voice.state === 'paused'}:${it.lowpass}`).join('|');
+    if (key === playingKey) { tickPlaying(); return; }
+    playingKey = key;
     clear(playingList);
     playingRows = [];
-    const items = engine.playingNow();
     if (!items.length) {
       playingList.append(h('p', { class: 'meta cn-pnone' }, 'Nothing is playing. Start a playlist below, or put a sound on top with a track’s layers button in the Playlists pane.'));
       return;
@@ -221,19 +248,55 @@ export default function createConsole({ el }) {
       const time = h('span', { class: 'cn-ptime time' });
       const stop = () => (it.role === 'deck' ? engine.stopMusic(1) : it.role === 'top' ? engine.stopLayer(it.id) : engine.stopPadVoice(v));
       const paused = v.state === 'paused';
+      const bar = scrubber(it);
       playingList.append(h('div', { class: `cn-prow is-${it.role} ${paused ? 'is-paused' : ''}`, role: 'listitem' },
-        h('span', { class: 'cn-pkind meta' }, KIND[v.sound.kind] || 'Sound'),
-        h('span', { class: 'cn-pname truncate', title: name }, name),
-        h('span', { class: 'cn-pwhere meta truncate' }, paused ? `${it.where} · paused` : it.where),
+        h('span', { class: 'cn-ptitle' },
+          h('span', { class: 'cn-pname truncate', title: name }, name),
+          h('span', { class: 'cn-pwhere meta truncate' }, `${KIND[v.sound.kind] || 'Sound'} · ${paused ? `${it.where} · paused` : it.where}`)),
         time,
-        it.role === 'deck' ? h('button', { class: 'btn-icon btn-sm', type: 'button', title: paused ? 'Resume' : 'Pause', 'aria-label': `${paused ? 'Resume' : 'Pause'} ${name}`, onclick: () => engine.togglePlay() }, icon(paused ? 'play' : 'pause', 'icon-sm')) : null,
-        h('button', { class: 'btn-icon btn-sm', type: 'button', title: `Stop ${name}`, 'aria-label': `Stop ${name}`, onclick: stop }, icon('stop', 'icon-sm'))));
-      playingRows.push({ v, time });
+        h('span', { class: 'cn-pbtns' },
+          h('button', { class: 'btn-icon btn-sm', type: 'button', 'aria-pressed': String(!!it.lowpass), title: it.lowpass ? 'Goes through the low-pass. Press to keep it clear.' : 'Kept clear of the low-pass. Press to send it through.', 'aria-label': `Low-pass for ${name}`, onclick: () => engine.setFiltered(it, !it.lowpass) }, icon('wave', 'icon-sm')),
+          it.role === 'deck' ? h('button', { class: 'btn-icon btn-sm', type: 'button', title: paused ? 'Resume' : 'Pause', 'aria-label': `${paused ? 'Resume' : 'Pause'} ${name}`, onclick: () => engine.togglePlay() }, icon(paused ? 'play' : 'pause', 'icon-sm')) : null,
+          h('button', { class: 'btn-icon btn-sm', type: 'button', title: `Stop ${name}`, 'aria-label': `Stop ${name}`, onclick: stop }, icon('stop', 'icon-sm'))),
+        bar.el));
+      playingRows.push({ v, time, bar });
     }
     tickPlaying();
   }
   function tickPlaying() {
-    for (const { v, time } of playingRows) time.textContent = v.repeat === 0 ? `${fmtTime(v.position)} · loops` : `${fmtTime(v.position)} / ${fmtTime(v.length)}`;
+    for (const { v, time, bar } of playingRows) {
+      time.textContent = v.repeat === 0 ? `${fmtTime(v.position)} · loops` : `${fmtTime(v.position)} / ${fmtTime(v.length)}`;
+      bar.sync();
+    }
+  }
+  /** A progress bar that moves its sound: drag along it, click a spot, or use the arrow keys. */
+  function scrubber(it) {
+    const v = it.voice;
+    const fill = h('i');
+    const el = h('div', { class: 'cn-pbar', role: 'slider', tabindex: 0, 'aria-label': `Position in ${v.sound.name}`, 'aria-valuemin': 0 }, fill);
+    let dragging = false;
+    const at = (e) => { const r = el.getBoundingClientRect(); return clamp((e.clientX - r.left) / r.width, 0, 1) * v.length; };
+    const show = (pos) => { fill.style.width = `${v.length > 0 ? (pos / v.length) * 100 : 0}%`; el.setAttribute('aria-valuenow', Math.round(pos)); };
+    el.addEventListener('pointerdown', (e) => {
+      dragging = true;
+      try { el.setPointerCapture(e.pointerId); } catch { /* no capture: the drag still works over the bar */ }
+      const p = at(e);
+      show(p);
+      engine.seekItem(it, p);
+    });
+    el.addEventListener('pointermove', (e) => { if (!dragging) return; const p = at(e); show(p); engine.seekItem(it, p); });
+    const end = () => { dragging = false; };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    el.addEventListener('keydown', (e) => {
+      const step = e.key === 'ArrowRight' ? 5 : e.key === 'ArrowLeft' ? -5 : 0;
+      if (!step) return;
+      e.preventDefault();
+      e.stopPropagation();
+      engine.seekItem(it, clamp(v.position + step, 0, v.length));
+    });
+    el.setAttribute('aria-valuemax', Math.round(v.length));
+    return { el, sync: () => { if (!dragging) show(v.position); } };
   }
 
   function renderPlaylists() {
@@ -337,6 +400,7 @@ export default function createConsole({ el }) {
     bus.on('audio', () => { render(); syncLayers(); }),
     bus.on('audio:tick', () => { if (!el.closest('.panel')?.hidden) tick(); }),
     bus.on('audio:levels', syncLevels),
+    bus.on('audio:lowpass', syncLowpass),
     bus.on('library:sound', (s) => { if (engine.music.voice?.sound.id === s.id) { flagsKey = ''; render(); } }),
     bus.on('state:playlists', renderPlaylists),
     bus.on('state:settings', () => { colors = themeColors(); cache.key = null; drawWave(); }),

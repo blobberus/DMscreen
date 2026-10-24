@@ -132,7 +132,15 @@ Playing a track or a playlist ends whatever was playing, so a playlist never pla
 once. To layer sounds (music with rain under it, a crowd over a fire), press a track's **on-top** button
 (the stacked squares) in the Playlists pane or the Sound library: just that sound plays over the rest,
 and pressing it again stops it. Pads always play over everything. The Console's **Playing** list shows
-every sound that is playing, each with its own stop button.
+every sound that is playing, each with its own scrub bar (click or drag it to move just that sound),
+stop button and low-pass switch.
+
+**Low-pass:** the slider above the Playing list muffles the sounds switched into it (the wave button on
+each row; the track and sounds on top are in by default, pads only with **Pads too**). Slide it while
+the party ducks behind a door or goes underwater; double-click it to open it again.
+
+**A sound's volume:** its **⋯** menu (or right-click in the Sound library) has **Volume…**, the level it
+plays at everywhere. The Sound library's folders fold away: click a folder's heading, or **Collapse all**.
 
 ### Previews in your headphones
 

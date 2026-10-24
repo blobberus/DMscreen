@@ -10,6 +10,7 @@ import { openDialog, showMenu, toast } from '../core/ui.js';
 import { fmtTime, parseTime, hostOf } from '../core/util.js';
 import { engine } from '../audio/engine.js';
 import { previewButton, onTopButton, syncPreviewButtons } from '../audio/cue.js';
+import { volumeDialog } from '../dialogs/volume.js';
 import { board, ROWS } from '../audio/board.js';
 import { playlists } from '../audio/playlists.js';
 import { createEditor } from './editor.js';
@@ -26,6 +27,10 @@ export default function createLibrary({ el, getState, setState, workspace }) {
   let kind = getState().kind || 'all';
   let selectedId = getState().selected || null;
   let narrowView = 'list';
+  // Folders (website) or kinds (PC) fold away to keep the list short; a search opens them all while it lasts.
+  const collapsed = new Set(getState().collapsed || []);
+  let groupKeys = [];
+  const foldBtn = h('button', { class: 'btn btn-sm lb-fold', type: 'button', onclick: () => foldAll() }, 'Collapse all');
   const search = h('input', { class: 'input input-sm', type: 'search', placeholder: 'Search sounds', 'aria-label': 'Search sounds' });
   const kinds = h('div', { class: 'tabs lb-kinds', role: 'tablist' });
   const fileIn = h('input', { type: 'file', multiple: true, accept: 'audio/*,.mp3,.wav,.ogg,.m4a,.flac,.opus,.webm', hidden: true });
@@ -39,11 +44,13 @@ export default function createLibrary({ el, getState, setState, workspace }) {
     ? h('div', { class: 'lb-bar' },
       h('label', { class: 'search lb-search' }, icon('search'), search),
       h('span', { class: 'lb-spacer' }),
+      foldBtn,
       h('button', { class: 'btn btn-sm', type: 'button', title: 'Upload sounds to a folder on GitHub', onclick: (e) => addSoundsMenu(e.currentTarget, { kind: kind === 'all' ? null : kind }) }, icon('upload'), 'Add sounds', icon('chevron-down', 'icon-sm')),
       refreshBtn)
     : h('div', { class: 'lb-bar' },
       h('label', { class: 'search lb-search' }, icon('search'), search),
       h('span', { class: 'lb-spacer' }),
+      foldBtn,
       h('button', { class: 'btn btn-sm', type: 'button', onclick: () => fileIn.click() }, icon('upload'), 'Add files'),
       h('button', { class: 'btn btn-sm', type: 'button', onclick: () => linkDialog() }, icon('link'), 'From a link'),
       h('button', { class: 'btn btn-sm', type: 'button', title: 'Search YouTube in its own pane', onclick: () => workspace.openKind('youtube') }, icon('youtube'), 'YouTube'),
@@ -127,6 +134,40 @@ export default function createLibrary({ el, getState, setState, workspace }) {
 
   const matches = (s, term) => !term || s.name.toLowerCase().includes(term) || (s.tags || []).some((t) => t.toLowerCase().includes(term));
 
+  /** A folder's (or kind's) heading: click it to fold its sounds away or open them. True if open. */
+  function groupHead(key, label, count, extra = []) {
+    const open = !collapsed.has(key) || !!search.value.trim();
+    groupKeys.push(key);
+    listEl.append(h('div', {
+      class: `lb-group ${open ? '' : 'is-closed'}`, role: 'button', tabindex: 0, 'aria-expanded': String(open), title: open ? `Fold ${label} away` : `Show what is in ${label}`,
+      onclick: (e) => { if (!e.target.closest('button')) toggleGroup(key); },
+      onkeydown: (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); toggleGroup(key); } },
+    },
+    icon(open ? 'chevron-down' : 'chevron-right', 'icon-sm lb-chev'),
+    h('span', { class: 'lb-groupname truncate', title: label }, label),
+    h('span', { class: 'meta num' }, String(count)),
+    h('span', { class: 'lb-spacer' }),
+    ...extra));
+    return open;
+  }
+  function toggleGroup(key) {
+    if (collapsed.has(key)) collapsed.delete(key); else collapsed.add(key);
+    setState({ collapsed: [...collapsed] });
+    renderList();
+  }
+  function foldAll() {
+    const close = groupKeys.some((k) => !collapsed.has(k));
+    for (const k of groupKeys) { if (close) collapsed.add(k); else collapsed.delete(k); }
+    setState({ collapsed: [...collapsed] });
+    renderList();
+  }
+  function syncFold() {
+    foldBtn.hidden = groupKeys.length < 2;
+    const anyOpen = groupKeys.some((k) => !collapsed.has(k));
+    foldBtn.textContent = anyOpen ? 'Collapse all' : 'Expand all';
+    foldBtn.title = anyOpen ? 'Fold every folder away, to see them all at once' : 'Open every folder';
+  }
+
   /** Website: the folders of each category, each with its sounds and an Add button. */
   function renderFolders() {
     clear(listEl);
@@ -134,16 +175,13 @@ export default function createLibrary({ el, getState, setState, workspace }) {
     const all = library.list();
     let shown = 0;
     const section = (g, label, items) => {
-      listEl.append(h('div', { class: 'lb-group' },
-        icon('folder', 'icon-sm'),
-        h('span', { class: 'lb-groupname truncate', title: folderLabel(g) }, label),
-        h('span', { class: 'meta num' }, String(items.length)),
-        h('span', { class: 'lb-spacer' }),
+      const open = groupHead(g, label, items.length, [
         addButton(g),
-        h('button', { class: 'btn-icon btn-sm', type: 'button', title: 'More', 'aria-label': `More for ${label}`, onclick: (e) => showMenu(e.currentTarget, folderItems(g), { align: 'end' }) }, icon('more'))));
+        h('button', { class: 'btn-icon btn-sm', type: 'button', title: 'More', 'aria-label': `More for ${label}`, onclick: (e) => showMenu(e.currentTarget, folderItems(g), { align: 'end' }) }, icon('more'))]);
+      shown += items.length;
+      if (!open) return;
       if (!items.length) listEl.append(h('p', { class: 'meta lb-groupnone' }, 'No sounds here yet.'));
       for (const s of items) listEl.append(makeRow(s));
-      shown += items.length;
     };
     for (const c of site.CATEGORIES) {
       if (kind !== 'all' && c.kind !== kind) continue;
@@ -156,8 +194,7 @@ export default function createLibrary({ el, getState, setState, workspace }) {
     }
     const loose = all.filter((s) => !site.kindOfDir(s.group || '') && (kind === 'all' || s.kind === kind) && matches(s, term));
     if (loose.length) {
-      listEl.append(h('div', { class: 'lb-group' }, icon('folder', 'icon-sm'), h('span', { class: 'lb-groupname' }, 'Outside the three folders'), h('span', { class: 'meta num' }, String(loose.length))));
-      for (const s of loose) listEl.append(makeRow(s));
+      if (groupHead('(loose)', 'Outside the three folders', loose.length)) for (const s of loose) listEl.append(makeRow(s));
       shown += loose.length;
     }
     if (!all.length && !term) {
@@ -170,7 +207,12 @@ export default function createLibrary({ el, getState, setState, workspace }) {
   }
 
   function renderList() {
-    if (SITE) { renderFolders(); return; }
+    groupKeys = [];
+    if (SITE) renderFolders(); else renderSounds();
+    syncFold();
+  }
+
+  function renderSounds() {
     clear(listEl);
     const term = search.value.trim().toLowerCase();
     const all = library.list();
@@ -188,7 +230,12 @@ export default function createLibrary({ el, getState, setState, workspace }) {
       listEl.append(h('p', { class: 'meta lb-none' }, term ? `No sounds match “${search.value}”.` : `No ${KIND_LABEL[kind]?.toLowerCase() || ''} sounds yet.`));
       return;
     }
-    for (const s of items) listEl.append(makeRow(s));
+    // grouped by kind, each group folding away like the website's folders
+    for (const [k, label] of [['music', 'Music'], ['ambience', 'Ambience'], ['effect', 'Effects'], [null, 'Other']]) {
+      const group = items.filter((s) => (k ? s.kind === k : !KIND_LABEL[s.kind]));
+      if (!group.length) continue;
+      if (groupHead(`kind:${k || 'other'}`, label, group.length)) for (const s of group) listEl.append(makeRow(s));
+    }
   }
 
   function makeRow(s) {
@@ -225,6 +272,7 @@ export default function createLibrary({ el, getState, setState, workspace }) {
       s.kind === 'effect' ? null : { label: engine.layerOn(s.id) ? 'Stop it on top' : 'Play on top of what is playing', icon: engine.layerOn(s.id) ? 'stop' : 'layers', onClick: () => engine.toggleLayer(s.id) },
       { label: engine.previewing(s.id) ? 'Stop the preview' : 'Preview', icon: 'headphones', hint: engine.previewRoute === 'device' ? 'only you' : '', onClick: () => engine.togglePreview(s) },
       { label: 'Open in the editor', icon: 'edit', onClick: () => select(s.id) },
+      SITE ? null : { label: 'Volume…', icon: 'volume', hint: `${Math.round((s.volume ?? 1) * 100)}%`, onClick: () => volumeDialog(s) },
       lists.length ? { label: 'Add to a playlist', icon: 'playlist', submenu: lists } : null,
       empty.length ? { label: `Put on a pad (${bank.name})`, icon: 'keyboard', submenu: empty.map((k) => ({ label: `Key ${k}`, onClick: () => {
         board.setPad(k, { sound: s.id, label: s.name, mode: s.repeat === 0 ? 'toggle' : 'once', volume: 1 });

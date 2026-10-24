@@ -6,6 +6,7 @@ import { library } from '../core/library.js';
 import * as site from '../core/site.js';
 import { openDialog, promptDialog, confirmDialog, showMenu, toast } from '../core/ui.js';
 import { openSettings } from './settings.js';
+import { volumeDialog } from './volume.js';
 
 const CATS = site.CATEGORIES;
 const ICON = { music: 'playlist', ambience: 'wave', effect: 'keyboard' };
@@ -113,6 +114,7 @@ export async function deleteSound(s) {
 /** The website's items for a sound's menu. */
 export function soundItems(s) {
   return [
+    { label: 'Volume…', icon: 'volume', hint: `${Math.round((s.volume ?? 1) * 100)}%`, onClick: () => volumeDialog(s) },
     { label: 'Rename…', icon: 'edit', onClick: () => renameSound(s) },
     { label: 'Move to', icon: 'folder', submenu: moveItems(s) },
     { label: 'Open on GitHub', icon: 'external', onClick: () => window.open(site.links.file(s.path), '_blank', 'noopener') },

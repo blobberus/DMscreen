@@ -43,6 +43,7 @@ app/js/layout/       workspace.js (presets, grid splitters, panes/tabs, floating
                      side rail: a hide/show button per pane, opened with each pane's tabs; panels when compact)
 app/js/panels/       registry + console pads playlists library editor youtube web notes
 app/js/dialogs/      settings.js shortcuts.js files.js (website: upload links, rename/move/new folder)
+                     volume.js (a sound's own volume, from its ⋯ menu)
 app/sw.js            website offline copy (media/peaks cache-first with byte ranges; the rest network-first)
 app/js/core/         + mode.js (SITE, repo, IOS) gate.js (browser password check) github.js (REST,
                      commits) site.js (website data: library.json, setup, pending ops) vault.js zip.js
@@ -63,7 +64,9 @@ tools/shrink_sounds.py  cuts long recordings to upload-sized MP3s (20 min from 3
   starting one ends the one before (the user's rule: a playlist never plays its sounds at once). A
   sound plays on its kind's bus; a loop-forever sound plays once per pass on the deck. Sounds "on top"
   are layers, started only on purpose by a track's on-top button (startLayer/stopLayer/toggleLayer).
-  `playingNow()` lists deck + on top + long pads for the Console's Playing list. Transport
+  `playingNow()` lists deck + on top + long pads for the Console's Playing list (each row scrubs with
+  `seekItem`). Every voice has its own low-pass BiquadFilter; `setLowpass(0..1)` sweeps the ones switched
+  in (`lowpass.deck`, each layer's `lowpass`, `lowpass.pads`; `setFiltered`), previews never. Transport
   (playPlaylist/playSingle/next/prev/togglePlay/jumpFlag/nextFlag/prevFlag), pads (firePad,
   stopPadVoice), fadeAll, toggleDuck, preview.
   Files ≤ 2 min decode to AudioBuffers; longer ones stream through MediaElementSource.
@@ -91,9 +94,14 @@ tools/shrink_sounds.py  cuts long recordings to upload-sized MP3s (20 min from 3
   playlists, Ambience folders playlists with `kind: 'ambience'` (listed apart, same deck). Nothing
   starts with a playlist: reconcile deletes the old `ambience` / `seenAmbience` / `withAmbience` fields.
 - Caching: Pages lets browsers keep files 10 minutes, so `build_site.py` stamps `?v=<hash>` on every
-  module import and the pages' script/style links, and `sw.js` fetches the shell with `no-cache`. A
-  mixed old/new set of modules once broke the Playlists pane and saved old-format setup. In tests,
-  import modules with the page's version: `'./js/x.js' + new URL(document.querySelector('script[type=module]').src).search`.
+  module import and the pages' script/style links, and `const BUILD` in sw.js (a new worker per publish).
+  sw.js answers `?v=` files cache-first by exact address (one build per page, even on a slow network),
+  everything else network-first with `no-cache`. A new worker whose `dm-shell-*` cache name differs
+  reloads open pages once (the migration off the pre-version worker); later publishes reach open pages
+  through `controllerchange` in main.js (reload when nothing plays, else a toast). The user's browser ran
+  old/mixed code for hours once (all Tavern layers at once). Tests: `rangeserve.py` honours
+  `CACHE=max-age=600`, and drive.mjs has an `exec` step to publish a new build mid-test. Import modules
+  with the page's version: `'./js/x.js' + new URL(document.querySelector('script[type=module]').src).search`.
 - Synced docs (`playlists boards keymap bookmarks` + sound meta) live in `setup.doc` and go to GitHub
   6 s after a change (Contents API, 3-way merge on conflict). `settings layouts` stay in localStorage.
 - Renames/moves/deletes/new folders (and `library.moveFolder` between Music and Ambience): one Git Data API commit with the remapped setup.json, then a

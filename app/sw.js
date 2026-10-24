@@ -1,22 +1,47 @@
-// The website's offline copy. Sounds and waveforms are named by their content, so once fetched they
-// never change: they come from the cache first, and a sound kept whole answers the byte ranges an
-// <audio> element asks for. Everything else (the screen itself, the sound list) comes from the network
-// first and from the cache when there is none, so the screen opens offline with what it last saw.
-// "The network" means asking GitHub every time (no-cache): its ten-minute browser cache could otherwise
-// hand back an old page after a publish. The build puts a version on every module's address.
-const SHELL = 'dm-shell-v1';
+// The website's offline copy, and what keeps a page on one version of the screen.
+// - Sounds and waveforms are named by their content, so once fetched they never change: they come from
+//   the cache first, and a sound kept whole answers the byte ranges an <audio> element asks for.
+// - The screen's code and styles carry the build's version in their address (?v=, put there by
+//   tools/build_site.py). Such a file never changes either, so it comes from the cache by its exact
+//   address first: a page always runs one build's files, even on a slow network. (GitHub Pages lets
+//   browsers keep files for ten minutes; a page that mixed two builds once broke the screen.)
+// - Everything else (the page itself, the sound list) is asked of GitHub every time, falling back to the
+//   last copy when there is no network, so the screen opens offline with what it last saw.
+// Each publish changes BUILD, so browsers install the new worker; the page reloads onto it (main.js).
+const BUILD = 'dev';
+const SHELL = 'dm-shell-v2';
 const MEDIA = 'dm-media-v1';
 
 self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+self.addEventListener('activate', (e) => e.waitUntil((async () => {
+  const stale = (await caches.keys()).filter((n) => n.startsWith('dm-shell') && n !== SHELL);
+  for (const name of stale) await caches.delete(name);
+  await self.clients.claim();
+  // Pages opened under the first worker (before versions) may be running old or mixed files and don't
+  // know how to reload themselves: load them again, once.
+  if (stale.length) for (const c of await self.clients.matchAll({ type: 'window' })) c.navigate(c.url).catch(() => {});
+})()));
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   const url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== location.origin) return;
   if (/\/(media|peaks)\//.test(url.pathname)) e.respondWith(media(req, url));
+  else if (url.searchParams.has('v')) e.respondWith(versioned(req));
   else e.respondWith(shell(req));
 });
+
+async function versioned(req) {
+  const cache = await caches.open(SHELL);
+  const hit = await cache.match(req);                   // this exact version
+  if (hit) return hit;
+  const res = await fetch(req, { cache: 'no-cache' });
+  if (res.ok) {
+    await cache.delete(req, { ignoreSearch: true });    // older versions of the file
+    await cache.put(req, res.clone());
+  }
+  return res;
+}
 
 async function media(req, url) {
   const cache = await caches.open(MEDIA);
@@ -55,12 +80,9 @@ async function shell(req) {
     const res = await Promise.race([
       // a page load (navigate) can't be re-made with options, so it is fetched by its address
       fetch(req.mode === 'navigate' ? req.url : req, { cache: 'no-cache' }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('slow')), 6000)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('slow')), 8000)),
     ]);
-    if (res.ok) {
-      await cache.delete(req, { ignoreSearch: true });     // the copy from an older version
-      cache.put(req, res.clone());
-    }
+    if (res.ok) cache.put(req, res.clone());
     return res;
   } catch (err) {
     const hit = await cache.match(req, { ignoreSearch: true });

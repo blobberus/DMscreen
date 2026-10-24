@@ -10,6 +10,8 @@
 // Short files (two minutes or less) are decoded into memory and start instantly; longer ones stream
 // through <audio> elements so an hour of rain never sits in RAM.
 // Previews (auditioning a sound) have their own bus, which can go to a second device such as headphones.
+// Every voice runs through its own low-pass filter, wide open unless the sound is switched into the
+// one sweep the Console controls (setLowpass), so it can be muffled live like a knob on a desk.
 // Emits 'audio' when what is playing changes and 'audio:tick' on animation frames while playing.
 import { library } from '../core/library.js';
 import { state } from '../core/state.js';
@@ -26,6 +28,9 @@ let ctx = null;
 const levelToGain = (v) => clamp(v, 0, 1.25) ** 2;
 const BUS = { music: 'music', ambience: 'ambience', effect: 'effects' };
 const busOf = (sound) => BUS[sound.kind] || 'music';
+const LP_OPEN = 20000;
+const LP_MIN = 150;            // the low-pass at its most muffled
+let serial = 0;
 
 // ---------------------------------------------------------------------------
 // Voices
@@ -47,9 +52,15 @@ class Voice {
     this.onApproach = opts.onApproach || null;              // {lead, run}: just before the final end
     this.passes = 0;
     this.state = 'idle';
+    this.serial = ++serial;
+    this.slot = opts.slot || null;                    // 'deck', 'top' or 'pad': which low-pass switch it follows
     this.out = ctx.createGain();
     this.out.gain.value = 0;
-    this.out.connect(engine.buses[bus]);
+    this.filter = ctx.createBiquadFilter();
+    this.filter.type = 'lowpass';
+    this.filter.Q.value = 0.8;
+    this.filter.frequency.value = engine.cutoffFor(this);
+    this.out.connect(this.filter).connect(engine.buses[bus]);
     engine.voices.add(this);
   }
   get length() { return this.to - this.from; }
@@ -87,7 +98,7 @@ class Voice {
     clearTimeout(this.endTimer);
     clearTimeout(this.fadeTimer);
     this.release();
-    try { this.out.disconnect(); } catch { /* already */ }
+    try { this.out.disconnect(); this.filter.disconnect(); } catch { /* already */ }
     this.engine.voices.delete(this);
     this.engine.changed();
   }
@@ -377,6 +388,7 @@ class Deck {
     const old = this.voice;
     const v = this.engine.voice(s, busOf(s), {
       ...(s.repeat === 0 ? { repeat: 1, loopFade: 0 } : {}),
+      slot: 'deck',
       fadeIn: old ? Math.max(fade, 0.05) : (s.fadeIn || 0.05),
       onEnd: (voice) => this.ended(voice),
       onApproach: { lead: Math.max(0.1, this.crossfade), run: (voice) => this.approaching(voice) },
@@ -478,7 +490,8 @@ class Engine {
     this.buses = {};
     this.buffers = new Map();
     this.music = new Deck(this);  // the deck: whatever playlist or track is playing
-    this.layers = new Map();      // sounds on top: soundId -> {voice, volume}
+    this.layers = new Map();      // sounds on top: soundId -> {voice, volume, lowpass}
+    this.lowpass = { amount: 0, deck: true, pads: false };     // amount 0 open .. 1 muffled; who goes through it
     this.pads = new Map();        // pad key -> Set<Voice>
     this.ducked = false;
     this.preview = null;
@@ -674,11 +687,12 @@ class Engine {
     if (!s || this.layers.has(id)) return;
     const v = this.voice(s, busOf(s), {
       volume,
+      slot: 'top',
       repeat: s.repeat ?? (s.kind === 'ambience' ? 0 : 1),
       fadeIn: Math.max(fade ?? (s.kind === 'ambience' ? 2 : 0.3), s.fadeIn || 0),
       onEnd: () => { if (this.layers.get(id)?.voice === v) { this.layers.delete(id); this.changed(); } },
     });
-    this.layers.set(id, { voice: v, volume });
+    this.layers.set(id, { voice: v, volume, lowpass: true });
     this.startVoice(v);
     this.changed();
   }
@@ -725,7 +739,7 @@ class Engine {
     const [from, to] = this.padRegion(pad, s);
     const repeat = mode === 'toggle' ? 0 : (s.repeat === 0 ? 1 : (s.repeat || 1));
     const v = this.voice(s, 'effects', {
-      from, to, repeat, volume: pad.volume ?? 1, loopFade: mode === 'toggle' ? Math.min(s.loopFade || 0, (to - from) / 3) : 0,
+      from, to, repeat, volume: pad.volume ?? 1, loopFade: mode === 'toggle' ? Math.min(s.loopFade || 0, (to - from) / 3) : 0, slot: 'pad',
       onEnd: () => { set.delete(v); this.changed(); },
     });
     set.add(v);
@@ -751,15 +765,54 @@ class Engine {
     const out = [];
     const live = (v) => v && v.state !== 'stopped' && v.state !== 'stopping';
     const m = this.music;
-    if (live(m.voice)) out.push({ voice: m.voice, role: 'deck', id: m.voice.sound.id, where: m.playlist()?.name || 'on its own' });
-    for (const [id, l] of this.layers) if (live(l.voice)) out.push({ voice: l.voice, role: 'top', id, where: 'on top' });
+    if (live(m.voice)) out.push({ voice: m.voice, role: 'deck', id: m.voice.sound.id, where: m.playlist()?.name || 'on its own', lowpass: this.lowpass.deck });
+    for (const [id, l] of this.layers) if (live(l.voice)) out.push({ voice: l.voice, role: 'top', id, where: 'on top', lowpass: l.lowpass });
     for (const [key, set] of this.pads) {
       for (const v of set) {
         if (!live(v) || (v.repeat !== 0 && v.length < 4)) continue;
-        out.push({ voice: v, role: 'pad', id: v.sound.id, where: key.startsWith('lib:') ? 'effect' : `pad ${key.split(':').pop()}` });
+        out.push({ voice: v, role: 'pad', id: v.sound.id, where: key.startsWith('lib:') ? 'effect' : `pad ${key.split(':').pop()}`, lowpass: this.lowpass.pads });
       }
     }
     return out;
+  }
+  /** Move a playing sound (a playingNow() entry) to a position, in seconds from its start. */
+  seekItem(item, pos) {
+    if (item.role === 'deck') this.seek(pos); else item.voice.seek(pos);
+  }
+
+  // ---- low-pass ---------------------------------------------------------------------------
+  // One sweep for the sounds switched into it: the deck's track, each sound on top (its own switch) and,
+  // if asked, the pads. The cutoff glides (a 30 ms time constant), so dragging it sounds like a knob.
+  lowpassHz(amount = this.lowpass.amount) { return LP_OPEN * (LP_MIN / LP_OPEN) ** clamp(amount, 0, 1); }
+  filtered(v) {
+    if (v.slot === 'deck') return this.lowpass.deck;
+    if (v.slot === 'pad') return this.lowpass.pads;
+    if (v.slot === 'top') return this.layers.get(v.sound.id)?.lowpass ?? true;
+    return false;                                     // previews are never filtered
+  }
+  cutoffFor(v) { return this.filtered(v) ? this.lowpassHz() : LP_OPEN; }
+  applyLowpass() {
+    if (ctx) {
+      const t = ctx.currentTime;
+      for (const v of this.voices) {
+        const f = v.filter.frequency;
+        f.cancelScheduledValues(t);
+        f.setTargetAtTime(this.cutoffFor(v), t, 0.03);
+      }
+    }
+    bus.emit('audio:lowpass');
+  }
+  setLowpass(amount) {
+    this.lowpass.amount = clamp(amount, 0, 1);
+    this.applyLowpass();
+  }
+  /** Switch a playing sound (a playingNow() entry) into the low-pass or out of it. */
+  setFiltered(item, on) {
+    if (item.role === 'deck') this.lowpass.deck = on;
+    else if (item.role === 'pad') this.lowpass.pads = on;
+    else { const l = this.layers.get(item.id); if (l) l.lowpass = on; }
+    this.applyLowpass();
+    this.changed();
   }
 
   // ---- everything ---------------------------------------------------------------
