@@ -19,7 +19,7 @@ export function folderLabel(dir) {
 export function uploadTo(dir) {
   window.open(site.links.upload(dir), '_blank', 'noopener');
   site.watch('upload');
-  toast(`GitHub opened in a new tab at ${folderLabel(dir)}. Drop your MP3s there and press Commit changes; they appear here about a minute later.`, { timeout: 9000 });
+  toast(`GitHub opened in a new tab at ${folderLabel(dir)}. Drop your MP3s there (up to 25 MB each) and press Commit changes; they appear here about a minute later.`, { timeout: 9000 });
 }
 
 /** Every folder sounds can go in, for an "Add sounds" button. With kind, just that category's. */
@@ -122,13 +122,25 @@ export function soundItems(s) {
   ];
 }
 
-/** The website's items for a folder (playlist, ambience folder or pad bank). */
-export function folderItems(dir) {
+/** The website's items for a folder (playlist, ambience playlist or pad bank). With onMoved, a playlist
+ *  can move between Music and Ambience; onMoved gets its new folder. */
+export function folderItems(dir, { onMoved } = {}) {
+  const kind = site.kindOfDir(dir);
+  const other = { music: 'Ambience', ambience: 'Music' }[kind];
   return [
     { label: 'Add sounds on GitHub', icon: 'upload', onClick: () => uploadTo(dir) },
     dir.includes('/') ? { label: 'Rename the folder…', icon: 'edit', onClick: () => renameFolder(dir) } : null,
+    onMoved && other && dir.includes('/') ? { label: kind === 'music' ? 'Make it an ambience playlist' : 'Make it a music playlist', icon: ICON[kind === 'music' ? 'ambience' : 'music'], onClick: async () => {
+      const to = await moveFolder(dir, other);
+      if (to) onMoved(to);
+    } } : null,
     { label: 'Open the folder on GitHub', icon: 'external', onClick: () => window.open(site.links.folder(dir), '_blank', 'noopener') },
   ];
+}
+
+/** Move a playlist's folder to Music or Ambience on GitHub. Resolves to its new folder, or null. */
+export function moveFolder(dir, parent) {
+  return run(() => library.moveFolder(dir, parent), (to) => `${site.folderName(to)} is ${parent === 'Ambience' ? 'an ambience' : 'a music'} playlist now (moved to ${folderLabel(to)}).`);
 }
 
 export function download(s) {

@@ -125,6 +125,8 @@ export const library = {
   async rename(id, name) { return this.moved(await this.commit(() => site.renameSound(id, name))); },
   async move(id, dir) { return this.moved(await this.commit(() => site.moveSound(id, dir))); },
   async renameFolder(dir, name) { return this.moved(await this.commit(() => site.renameFolder(dir, name))); },
+  /** Move a folder to another category, keeping its name (a playlist to Ambience and back). */
+  async moveFolder(dir, parent) { return this.moved(await this.commit(() => site.renameFolder(dir, site.folderName(dir), parent))); },
   async createFolder(parent, name) {
     const dir = await this.commit(() => site.createFolder(parent, name));
     await this.load();

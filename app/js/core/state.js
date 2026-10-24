@@ -13,13 +13,15 @@ export const DEFAULTS = {
     returnFocus: true,         // leaving a site pane gives the keyboard back to the screen
     sites: {
       wardens: 'https://blobberus.github.io/Stone-Wardens/',
-      combat: 'https://blobberus.github.io/Combat-Ring/',
     },
     search: 'google',
     levels: { master: 0.9, music: 0.75, ambience: 0.65, effects: 0.9 },
     duckAmount: 0.3,
     crossfade: 3,
     fadeAll: 3,
+    railOpen: false,           // the side rail shows pane names and their tabs
+    previewOutput: null,       // {id, label}: previews play on this device (headphones) instead of the main output
+    previewLevel: 0.95,
   },
   layouts: null,               // filled by the workspace
   playlists: { list: [] },

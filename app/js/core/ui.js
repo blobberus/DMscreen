@@ -100,7 +100,7 @@ let openMenu = null;
 export function closeMenu() { openMenu?.close(); }
 
 /**
- * items: [{label, icon, hint, checked, disabled, onClick, sep, header, submenu}]
+ * items: [{label, icon, hint, checked, disabled, onClick, sep, header, submenu, glyph}] (glyph: a drawing at the end)
  * anchor: element (menu opens below it) or {x, y}.
  */
 export function showMenu(anchor, items, { align = 'start', minWidth } = {}) {
@@ -124,7 +124,8 @@ export function showMenu(anchor, items, { align = 'start', minWidth } = {}) {
     },
     it.checked !== undefined ? icon('check', 'menu-check') : (it.icon ? icon(it.icon) : null),
     h('span', { class: 'truncate' }, it.label),
-    it.hint ? h('span', { class: 'menu-hint' }, it.hint) : it.submenu ? icon('chevron-right', 'menu-hint') : null);
+    it.hint ? h('span', { class: 'menu-hint' }, it.hint) : it.submenu ? icon('chevron-right', 'menu-hint') : null,
+    it.glyph || null);
     menu.append(btn);
   }
   overlays().append(menu);

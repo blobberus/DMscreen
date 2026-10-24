@@ -128,7 +128,7 @@ export default function createPads({ el }) {
     const n = Number(key);
     if (action && action.id.startsWith('playlist.')) {
       const pl = playlists.byKey(Number(action.id.split('.')[1]));
-      const playing = pl && engine.music.playlistId === pl.id && engine.music.voice;
+      const playing = pl && playlists.playing(pl);
       return h('button', {
         class: `pd-key is-number ${pl ? '' : 'is-blank'} ${playing ? 'is-selected' : ''}`, type: 'button',
         title: pl ? `Start ${pl.name}` : `No playlist on ${key} yet`,
@@ -291,7 +291,7 @@ export default function createPads({ el }) {
     bus.on('state:keymap', renderBoard),
     bus.on('library', renderBoard),
     bus.on('audio', () => {
-      const playingList = engine.music.voice ? engine.music.playlistId : null;
+      const playingList = [engine.music, engine.ambience].map((d) => (d.voice ? d.playlistId : '')).join('|');
       if (playingList !== lastList) { lastList = playingList; renderBoard(); } else tick();
     }),
     bus.on('audio:tick', tick),

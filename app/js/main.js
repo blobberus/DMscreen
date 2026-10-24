@@ -14,8 +14,8 @@ import { toast } from './core/ui.js';
 import { fmtTime, clamp } from './core/util.js';
 import { engine } from './audio/engine.js';
 import { board } from './audio/board.js';
-import { workspace } from './layout/workspace.js';
-import { KINDS, KIND_ORDER, kindOf } from './panels/registry.js';
+import { workspace, layoutIcon } from './layout/workspace.js';
+import { buildRail } from './layout/rail.js';
 import { openSettings } from './dialogs/settings.js';
 import { openShortcuts } from './dialogs/shortcuts.js';
 import { startPlaylistKey, playlists } from './audio/playlists.js';
@@ -23,42 +23,6 @@ import { startPlaylistKey, playlists } from './audio/playlists.js';
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   try { localStorage.setItem('dm:theme', theme); } catch { /* private mode */ }
-}
-
-// ---------- rail ------------------------------------------------------------------
-function buildRail() {
-  const kinds = document.getElementById('rail-kinds');
-  const utils = document.getElementById('rail-utils');
-  const buttons = new Map();
-  KIND_ORDER.forEach((k, i) => {
-    const def = KINDS[k];
-    if ((i === 5 || i === 6) && kinds.lastChild) kinds.append(h('div', { class: 'rail-sep' }));
-    const btn = h('button', {
-      class: 'rail-btn', type: 'button', title: `${def.title}: ${def.hint}`, 'aria-label': def.title, draggable: true,
-      onclick: () => workspace.openKind(k),
-      ondragstart: (e) => { e.dataTransfer.setData('application/x-dm-kind', k); e.dataTransfer.effectAllowed = 'copyMove'; workspace.beginDrag(); },
-      ondragend: () => workspace.endDrag(),
-    }, icon(def.icon));
-    buttons.set(k, btn);
-    kinds.append(btn);
-  });
-  utils.append(
-    h('button', { class: 'rail-btn', type: 'button', title: 'Shortcuts (Alt+/)', 'aria-label': 'Shortcuts', onclick: () => openShortcuts() }, icon('help')),
-    h('button', { class: 'rail-btn', type: 'button', title: 'Settings', 'aria-label': 'Settings', onclick: () => openSettings() }, icon('settings')),
-    h('button', { class: 'rail-btn', type: 'button', title: 'Lock the screen (sign out)', 'aria-label': 'Lock the screen', onclick: lock }, icon('lock')),
-  );
-  const mark = () => {
-    const L = workspace.L;
-    const shown = new Set(workspace.visiblePanes().map((p) => workspace.activeFor(p)).map((id) => id && kindOf(id)));
-    for (const [k, btn] of buttons) {
-      const placed = Object.values(L.panes).some((p) => p.tabs.some((t) => kindOf(t) === k));
-      btn.classList.toggle('is-shown', shown.has(k));
-      btn.title = `${KINDS[k].title}: ${KINDS[k].hint}${placed && !shown.has(k) ? ' (in a tab)' : ''}`;
-    }
-  };
-  bus.on('layout:changed', mark);
-  bus.on('state:layouts', mark);
-  document.getElementById('workspace').addEventListener('click', () => setTimeout(mark, 0));
 }
 
 export async function lock() {
@@ -101,7 +65,9 @@ function buildTop() {
     setIcon(playIcon, v && v.state === 'playing' ? 'pause' : 'play');
     if (!s) {
       const pl = engine.playlist();
-      title.replaceChildren(h('span', { class: 'deck-idle' }, pl ? `${pl.name}: stopped. Alt+P to play.` : 'Nothing playing. Alt+1 to 9 starts a playlist.'));
+      const amb = engine.ambience.voice && (engine.ambience.playlist()?.name || engine.ambience.track?.name);
+      const idle = pl ? `${pl.name}: stopped. Alt+P to play.` : amb ? 'No music.' : 'Nothing playing. Alt+1 to 9 starts a playlist.';
+      title.replaceChildren(h('span', { class: 'deck-idle' }, amb ? `${idle} Ambience: ${amb}.` : idle));
       time.textContent = '';
       bar.hidden = true;
       return;
@@ -185,10 +151,29 @@ function buildTop() {
   });
   showReady();
 
+  // its icon is the arrangement on screen now
+  let layoutGlyph = icon('layout');
   const layoutBtn = h('button', { class: 'btn btn-ghost top-btn', type: 'button', title: 'Arrange the panes', onclick: (e) => workspace.layoutMenu(e.currentTarget) },
-    icon('layout'), h('span', { class: 'label' }, 'Layout'), icon('chevron-down', 'icon-sm'));
+    layoutGlyph, h('span', { class: 'label' }, 'Layout'), icon('chevron-down', 'icon-sm'));
+  bus.on('layout:changed', () => {
+    const g = layoutIcon(workspace.arrangement().areas);
+    layoutGlyph.replaceWith(g);
+    layoutGlyph = g;
+  });
 
-  right.append(duck, fade, level, status, layoutBtn);
+  // panes taken off the screen, one click from coming back
+  const hiddenCount = h('span', { class: 'top-count' });
+  const hiddenBtn = h('button', { class: 'btn btn-ghost top-btn', type: 'button', hidden: true, onclick: (e) => workspace.hiddenMenu(e.currentTarget) },
+    icon('eye-off'), hiddenCount, h('span', { class: 'label' }, 'hidden'));
+  const markHidden = () => {
+    const gone = workspace.compact ? [] : workspace.hiddenPanes();
+    hiddenBtn.hidden = !gone.length;
+    hiddenCount.textContent = String(gone.length);
+    hiddenBtn.title = `Hidden: ${gone.map((p) => workspace.paneLabel(p)).join('; ')}. Choose one to show it again.`;
+  };
+  bus.on('layout:changed', markHidden);
+
+  right.append(duck, fade, level, status, hiddenBtn, layoutBtn);
 }
 
 // ---------- keyboard actions -------------------------------------------------------------
@@ -285,7 +270,13 @@ async function boot() {
   applyTheme(state.get('settings').theme);
   bus.on('state:settings', (s) => applyTheme(s.theme));
   engine.init();
-  buildRail();
+  buildRail({
+    utilities: [
+      { label: 'Shortcuts', icon: 'help', title: 'Shortcuts (Alt+/)', onClick: () => openShortcuts() },
+      { label: 'Settings', icon: 'settings', onClick: () => openSettings() },
+      { label: 'Lock the screen', icon: 'lock', title: 'Lock the screen (sign out)', onClick: lock },
+    ],
+  });
   buildTop();
   wireKeys();
   workspace.mount(document.getElementById('workspace'));

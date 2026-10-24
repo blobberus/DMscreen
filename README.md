@@ -5,12 +5,14 @@ built around a sound console you can run from the keyboard without looking.
 
 - **Sound console**: what is playing, its flags, the transport, your playlists and a mixer.
 - **Soundboard**: effect pads laid out like your keyboard. Alt+Q fires the pad on Q.
-- **Playlists**: music plus the ambience under it for each scene, on number keys (Alt+1 to 9).
+- **Playlists**: music for each scene and ambience playlists that play under it, on number keys
+  (Alt+1 to 9). Music, ambience and effects all play at once.
 - **Sound library and editor**: add files, download from links, trim, drop flags, set repeats and
   fades, cut part of a sound into a new one, export MP3 or WAV.
 - **YouTube**: search, preview, and download the audio (all of it, or just a stretch) as MP3.
-- **Stone Wardens** and **Combat Ring**: your campaign sites in a pane.
-- **Web**: 5e.tools, D&D Beyond, any address or a search.
+- **Stone Wardens**: your campaign site, and the screen's browser. Searches, addresses, your Sites list
+  (5e.tools, D&D Beyond…), links in notes and links the campaign site opens in a new tab all load in
+  this one tab.
 - **Notes**: Markdown notes in an Obsidian vault, made for writing during a session.
 
 The whole screen is behind one password: **Pleiades**.
@@ -31,14 +33,15 @@ Open **https://blobberus.github.io/DMscreen/** and enter the password.
 | Folder | On the screen |
 |---|---|
 | `sounds/Music/<name>/` | the playlist *name*; its files are the tracks, in file-name order |
-| `sounds/Ambience/<name>/` | ambience that starts with the playlist of the same name |
+| `sounds/Ambience/<name>/` | the ambience playlist *name*: it plays under the music, and starts with the playlist of the same name |
 | `sounds/Effects/<name>/` | the soundboard bank *name*; each sound takes the next free letter key |
 
 - **Add sounds:** every folder on the screen has an **Add** button. It opens GitHub's upload page for
   that folder: drop in MP3s and press **Commit changes**. They appear on the screen about a minute later.
 - **Rename and move sounds** on the screen (a sound's menu, or the name and folder at the top of the
   editor). The file is renamed in the repo, and its flags, pads and keys go with it. Folders (playlists,
-  pad banks) rename the same way, and **New** makes one.
+  pad banks) rename the same way, and **New** makes one. A playlist's ⋯ menu moves it between Music and
+  Ambience.
 - Renaming, and keeping your flags, pads and keys the same on every device, needs the device
   **connected to GitHub** once: Settings, GitHub has the four steps. It makes a token that can only change
   this repo's files, kept in that browser. Without it everything still plays, and changes stay on that device.
@@ -88,7 +91,7 @@ Needs Python 3.10 or newer (already on this computer). Everything else installs 
 
 | Keys | What they do |
 | --- | --- |
-| Alt+1 … Alt+9 | Start the playlist on that number (music crossfades, its ambience fades in) |
+| Alt+1 … Alt+9 | Start the playlist on that number (music crossfades, its ambience fades in; an ambience playlist starts under the music) |
 | Alt+Q, Alt+W, … | Fire the pad on that key in the current bank |
 | Alt+P | Play or pause the music |
 | Alt+, / Alt+. | Previous / next track |
@@ -100,6 +103,7 @@ Needs Python 3.10 or newer (already on this computer). Everything else installs 
 | Alt+Backspace | Stop all effects |
 | Alt+Up / Alt+Down | Previous / next pad bank |
 | Alt+Enter | Maximise the pane you're in (Esc restores) |
+| Alt+Shift+H / Alt+Shift+S | Hide the pane you're in / show every hidden pane |
 | Alt+/ | Show every shortcut |
 
 Alt shortcuts work everywhere, even while you type a note. When you're not typing, the key alone
@@ -118,15 +122,37 @@ a "100 sword sounds" video becomes a hundred pads. A pad can also start at a fla
 one, so one long recording can feed a whole bank.
 
 Ambience loops forever by default, with a short blend at the loop point so it never clicks. Any sound
-can be set to play once, a number of times, or forever, with fades in and out.
+can be set to play once, a number of times, or forever, with fades in and out. In an ambience playlist
+each sound plays through once and the next crossfades in; choose **Repeat track** to loop just one.
+
+### Previews in your headphones
+
+Every sound in the library and every track in a playlist has a headphones button: it previews the sound
+without touching the music, ambience or pads (the editor's play button previews too). In **Settings,
+Audio, Preview output**, send previews to a second output, like headphones, and only you hear them: press
+**List my outputs**, pick one, and **Play a test sound**. Chrome and Edge ask for the microphone once to
+show your outputs by name; nothing is recorded. If those headphones are unplugged, previews go silent
+instead of out of the table's speakers. This needs Chrome or Edge (or Firefox) on a computer: an iPad
+sends all its sound to one place, so there previews play through the main output.
 
 ## Panes and layouts
 
-Drag the lines between panes to resize them (the dot where two lines meet moves both). The Layout
-menu has eight arrangements, from four equal panes to one; save the ones you like (Combat, Roleplay,
-Prep) and switch between them from the same menu. Each pane holds tabs: drag a tab onto another pane
-to move it, right-click a tab for more, and use the rail on the left to bring any panel forward.
+The screen starts with Stone Wardens large on the left and the console above the soundboard on the
+right; notes wait in the fourth pane (tap its rail button for large left, three stacked). Drag the
+lines between panes to resize them (the dot where two lines meet moves both). The Layout menu, whose
+button draws the arrangement on screen, has eight arrangements, from four equal panes to one; save the
+ones you like (Combat, Roleplay, Prep) and switch between them from the same menu. Each pane holds tabs: drag a tab onto another pane
+to move it, right-click a tab for more, or use **+** in a pane's corner to show another panel there.
 Lock the layout during a session so nothing moves by accident.
+
+The rail on the left has one button for each of the four panes, drawn as a little map with that pane
+filled in. Tap one to take its pane off the screen: the panes beside it grow into its space and
+everything else stays where it was, while its tabs keep playing and waiting. Tap it again to bring the
+pane back. The **–** in a pane's corner hides it too, and the top bar shows how many panes are hidden.
+Open the rail (the button under the mark) to see each pane's name and a dropdown of its tabs: choose a
+tab to show it, or **Add a panel here**. Right-click or hold a pane button for the same list with the
+rail closed. Picking an arrangement from the Layout menu shows all of its panes again. In a narrow
+window there is only one pane, so the rail lists the panels instead.
 
 ## YouTube downloads
 
@@ -144,6 +170,10 @@ archive.org, direct MP3s and hundreds of other sites work the same way, and usua
 Some sites forbid being shown inside another page. 5e.tools and D&D Beyond can also refuse when
 Cloudflare decides to check your browser. The pane then offers to **open the site in a window placed
 exactly over the pane**, or in a new tab.
+
+Google searches load in the pane, but inside another page the browser keeps Google's own cookies from
+it, and Google may then leave out the AI Overview. The note over the results opens the same search in
+a window over the pane, where everything shows.
 
 To show those sites inside the pane, add the **frame helper** (one minute, Chrome or Edge):
 

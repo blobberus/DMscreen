@@ -19,7 +19,7 @@ const BUILTIN = {
   place: '---\ntags: [location]\n---\n# {{title}}\n\n**Region:** \n**Feel:** \n\n## People here\n- \n\n## Notes\n- \n',
 };
 
-export default function createNotes({ el, getState, setState }) {
+export default function createNotes({ el, getState, setState, workspace }) {
   const saved = getState();
   let tree = { files: [], folders: [], name: 'Vault', root: '' };
   let current = null;           // {path, mtime}
@@ -293,6 +293,13 @@ export default function createNotes({ el, getState, setState }) {
   });
   read.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') { e.preventDefault(); setMode('write'); } });
   read.tabIndex = 0;
+  // links to other sites open in the Stone Wardens tab rather than a new browser tab
+  read.addEventListener('click', (e) => {
+    const a = e.target.closest('a.external');
+    if (!a || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || !/^https?:/.test(a.href)) return;
+    e.preventDefault();
+    workspace.openSite(a.href);
+  });
 
   // ---- editing helpers -------------------------------------------------------------------------------
   function insertAtCaret(before, after = '') {

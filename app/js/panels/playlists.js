@@ -1,33 +1,43 @@
-// Playlists: for each scene, the music (in order or shuffled) and the ambience that plays under it,
-// started with its number key. Drag sounds in from the library; drag tracks to reorder.
-// On the website each playlist is a folder in sounds/Music: its tracks are the files in it, in
-// file-name order, and adding music opens GitHub's upload page for that folder.
+// Playlists: for each scene, the music (in order or shuffled), the ambience playlist that starts with it
+// and any extra layers, started with its number key. Ambience playlists are listed apart: they play on
+// their own deck, so they run under whatever music is playing. Drag sounds in from the library; drag
+// tracks to reorder.
+// On the website each playlist is a folder in sounds/Music or sounds/Ambience: its tracks are the files
+// in it, in file-name order, and adding sounds opens GitHub's upload page for that folder.
 import { h, icon, clear } from '../core/dom.js';
 import { bus } from '../core/bus.js';
 import { library } from '../core/library.js';
 import { pickSound, confirmDialog, showMenu, toast } from '../core/ui.js';
 import { fmtTime, fmtDuration } from '../core/util.js';
 import { engine } from '../audio/engine.js';
+import { previewButton, syncPreviewButtons } from '../audio/cue.js';
 import { playlists, REPEAT } from '../audio/playlists.js';
 import { SITE } from '../core/mode.js';
 import { newFolder, folderItems, soundItems, addButton, explainFailure } from '../dialogs/files.js';
 
+const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
 export default function createPlaylists({ el, getState, setState }) {
   let selected = getState().selected || null;
-  const listEl = h('div', { class: 'pl-list', role: 'listbox', 'aria-label': 'Playlists' });
+  const lists = {
+    music: h('div', { class: 'pl-list', role: 'listbox', 'aria-label': 'Music playlists' }),
+    ambience: h('div', { class: 'pl-list', role: 'listbox', 'aria-label': 'Ambience playlists' }),
+  };
   const editor = h('div', { class: 'pl-editor' });
+  const sideHead = (kind) => h('div', { class: 'pl-sidehead' },
+    h('h2', { class: 'pl-h' }, kind === 'ambience' ? 'Ambience' : 'Music'),
+    h('button', { class: 'btn btn-sm', type: 'button', title: kind === 'ambience' ? 'New ambience playlist' : 'New playlist', onclick: () => newPlaylist(kind) }, icon('plus'), 'New'));
   const root = h('div', { class: 'pl' },
-    h('aside', { class: 'pl-side' },
-      h('div', { class: 'pl-sidehead' }, h('h2', { class: 'pl-h' }, 'Playlists'),
-        h('button', { class: 'btn btn-sm', type: 'button', onclick: async () => {
-          if (SITE) { const dir = await newFolder('Music'); if (dir) select(dir); return; }
-          const pl = playlists.create();
-          select(pl.id);
-          requestAnimationFrame(() => editor.querySelector('.pl-name')?.select());
-        } }, icon('plus'), 'New')),
-      listEl),
+    h('aside', { class: 'pl-side' }, sideHead('music'), lists.music, sideHead('ambience'), lists.ambience),
     editor);
   el.append(root);
+
+  async function newPlaylist(kind, name = null) {
+    if (SITE) { const dir = await newFolder(kind === 'ambience' ? 'Ambience' : 'Music'); if (dir) select(dir); return; }
+    const pl = playlists.create(name || (kind === 'ambience' ? 'New ambience' : 'New playlist'), kind);
+    select(pl.id);
+    if (!name) requestAnimationFrame(() => editor.querySelector('.pl-name')?.select());
+  }
 
   function select(id) {
     selected = id;
@@ -37,26 +47,31 @@ export default function createPlaylists({ el, getState, setState }) {
   }
 
   function renderList() {
-    clear(listEl);
-    const list = playlists.list();
-    if (!selected || !playlists.get(selected)) selected = list[0]?.id || null;
-    if (!list.length) {
-      listEl.append(h('p', { class: 'meta pl-none' }, 'No playlists yet.'));
-      return;
+    if (!selected || !playlists.get(selected)) selected = playlists.list()[0]?.id || null;
+    for (const kind of ['music', 'ambience']) {
+      const box = lists[kind];
+      clear(box);
+      const group = playlists.ofKind(kind);
+      if (!group.length) {
+        box.append(h('p', { class: 'meta pl-none' }, kind === 'ambience' ? 'No ambience playlists yet.' : 'No playlists yet.'));
+        continue;
+      }
+      for (const pl of group) box.append(listRow(pl));
     }
-    for (const pl of list) {
-      const playing = engine.music.playlistId === pl.id && engine.music.voice;
-      const row = h('button', {
-        class: `pl-row ${pl.id === selected ? 'is-selected' : ''}`, type: 'button', role: 'option', 'aria-selected': String(pl.id === selected),
-        onclick: () => select(pl.id),
-        ondblclick: () => playlists.play(pl.id),
-      },
-      h('span', { class: 'pl-key' }, pl.key ? h('kbd', { class: 'kbd' }, String(pl.key)) : h('span', { class: 'faint' }, '–')),
-      h('span', { class: 'pl-rowtext' },
-        h('span', { class: `pl-rowname truncate ${playing ? 'is-live' : ''}` }, pl.name),
-        h('span', { class: 'meta' }, `${pl.tracks.length} ${pl.tracks.length === 1 ? 'track' : 'tracks'} · ${fmtDuration(playlists.duration(pl))}${pl.ambience.length ? ` · ${pl.ambience.length} ambience` : ''}`)));
-      listEl.append(row);
-    }
+  }
+
+  function listRow(pl) {
+    const amb = playlists.ambienceFor(pl);
+    const meta = [plural(pl.tracks.length, 'track'), fmtDuration(playlists.duration(pl)), amb ? `with ${amb.name}` : null, pl.ambience.length ? plural(pl.ambience.length, 'layer') : null];
+    return h('button', {
+      class: `pl-row ${pl.id === selected ? 'is-selected' : ''}`, type: 'button', role: 'option', 'aria-selected': String(pl.id === selected),
+      onclick: () => select(pl.id),
+      ondblclick: () => playlists.play(pl.id),
+    },
+    h('span', { class: 'pl-key' }, pl.key ? h('kbd', { class: 'kbd' }, String(pl.key)) : h('span', { class: 'faint' }, '–')),
+    h('span', { class: 'pl-rowtext' },
+      h('span', { class: `pl-rowname truncate ${playlists.playing(pl) ? 'is-live' : ''}` }, pl.name),
+      h('span', { class: 'meta' }, meta.filter(Boolean).join(' · '))));
   }
 
   function renderEditor() {
@@ -66,16 +81,16 @@ export default function createPlaylists({ el, getState, setState }) {
       editor.append(h('div', { class: 'empty' },
         h('strong', null, 'Make a playlist for each kind of scene'),
         h('span', null, SITE
-          ? 'Each folder in sounds/Music on GitHub is a playlist: a tavern, the road, a fight, a boss. Its MP3s are the tracks, ambience of the same name plays under it, and it gets a number key: Alt+1 starts the first.'
-          : 'A tavern, the road, a fight, a boss. Each gets music, the ambience under it, and a number key: Alt+1 starts the first.'),
-        h('div', { class: 'row' }, h('button', { class: 'btn btn-primary', type: 'button', onclick: async () => {
-          if (SITE) { const dir = await newFolder('Music'); if (dir) select(dir); return; }
-          select(playlists.create('Tavern').id);
-        } }, icon('plus'), 'New playlist'))));
+          ? 'Each folder in sounds/Music on GitHub is a playlist: a tavern, the road, a fight, a boss. Its MP3s are the tracks and it gets a number key: Alt+1 starts the first. Folders in sounds/Ambience are ambience playlists, which play under the music.'
+          : 'A tavern, the road, a fight, a boss. Each gets music, the ambience under it, and a number key: Alt+1 starts the first. Ambience playlists play under any music.'),
+        h('div', { class: 'row' },
+          h('button', { class: 'btn btn-primary', type: 'button', onclick: () => newPlaylist('music', SITE ? null : 'Tavern') }, icon('plus'), 'New playlist'),
+          h('button', { class: 'btn', type: 'button', onclick: () => newPlaylist('ambience', SITE ? null : 'Tavern') }, icon('plus'), 'New ambience playlist'))));
       return;
     }
-    const playing = engine.music.playlistId === pl.id && engine.music.voice;
-    const name = h('input', { class: 'input pl-name', value: pl.name, 'aria-label': 'Playlist name', maxlength: 60 });
+    const isAmb = pl.kind === 'ambience';
+    const playing = playlists.playing(pl);
+    const name = h('input', { class: 'input pl-name', value: pl.name, 'aria-label': isAmb ? 'Ambience playlist name' : 'Playlist name', maxlength: 60 });
     if (SITE) {
       // the name is the folder's: renaming it renames the folder on GitHub
       name.title = 'Rename the folder on GitHub';
@@ -99,12 +114,21 @@ export default function createPlaylists({ el, getState, setState }) {
         return h('option', { value: String(n), selected: pl.key === n }, `Alt+${n}${owner && owner.id !== pl.id ? ` (from ${owner.name})` : ''}`);
       }));
     keySel.addEventListener('change', () => { playlists.update(pl.id, { key: keySel.value ? Number(keySel.value) : null }); renderList(); });
-    const playBtn = h('button', { class: `btn ${playing ? '' : 'btn-primary'}`, type: 'button', onclick: () => playlists.play(pl.id) }, icon('play'), playing ? 'Playing · restart' : 'Play');
-    const more = h('button', { class: 'btn-icon', type: 'button', 'aria-label': 'More', title: 'More', onclick: (e) => showMenu(e.currentTarget, SITE ? folderItems(pl.dir) : [
+    // an ambience playlist that is playing stops here; a music playlist restarts
+    const playBtn = isAmb && playing
+      ? h('button', { class: 'btn', type: 'button', onclick: () => playlists.stop(pl.id) }, icon('stop'), 'Stop')
+      : h('button', { class: `btn ${playing ? '' : 'btn-primary'}`, type: 'button', onclick: () => playlists.play(pl.id) }, icon('play'), playing ? 'Playing · restart' : 'Play');
+    const more = h('button', { class: 'btn-icon', type: 'button', 'aria-label': 'More', title: 'More', onclick: (e) => showMenu(e.currentTarget, SITE ? folderItems(pl.dir, { onMoved: select }) : [
       { label: 'Duplicate', icon: 'plus', onClick: () => {
-        const copy = playlists.create(`${pl.name} (copy)`);
-        playlists.update(copy.id, { tracks: pl.tracks.slice(), ambience: structuredClone(pl.ambience), shuffle: pl.shuffle, repeat: pl.repeat, crossfade: pl.crossfade });
+        const copy = playlists.create(`${pl.name} (copy)`, isAmb ? 'ambience' : 'music');
+        playlists.update(copy.id, { tracks: pl.tracks.slice(), ambience: structuredClone(pl.ambience), withAmbience: pl.withAmbience, shuffle: pl.shuffle, repeat: pl.repeat, crossfade: pl.crossfade });
         select(copy.id);
+      } },
+      { label: isAmb ? 'Make it a music playlist' : 'Make it an ambience playlist', icon: isAmb ? 'playlist' : 'wave', onClick: () => {
+        if (playing) engine.deckFor(pl).stop(1);
+        playlists.update(pl.id, { kind: isAmb ? undefined : 'ambience' });
+        renderList();
+        renderEditor();
       } },
       { label: 'Delete this playlist', icon: 'trash', onClick: async () => {
         if (await confirmDialog(`Delete “${pl.name}”? Its sounds stay in the library.`, { okLabel: 'Delete', danger: true })) { playlists.remove(pl.id); select(null); }
@@ -112,45 +136,69 @@ export default function createPlaylists({ el, getState, setState }) {
     ], { align: 'end' }) }, icon('more'));
     editor.append(h('header', { class: 'pl-head' }, name, h('label', { class: 'pl-keylabel' }, h('span', { class: 'meta' }, 'Key'), keySel), playBtn, more));
 
-    // music
+    // the tracks: music, or an ambience playlist's sounds
     const total = playlists.duration(pl);
     const tracks = h('ol', { class: 'pl-tracks', role: 'list' });
     pl.tracks.forEach((id, i) => tracks.append(trackRow(pl, id, i)));
-    if (!pl.tracks.length) tracks.append(h('li', { class: 'pl-drop-empty' }, SITE ? 'No music in this folder yet. Add MP3s to it on GitHub.' : 'Drag music here from the library, or add it with the button.'));
+    if (!pl.tracks.length) {
+      tracks.append(h('li', { class: 'pl-drop-empty' }, SITE
+        ? `No ${isAmb ? 'ambience' : 'music'} in this folder yet. Add MP3s to it on GitHub.`
+        : `Drag ${isAmb ? 'ambience' : 'music'} here from the library, or add it with the button.`));
+    }
     if (!SITE) wireDrop(tracks, pl, 'tracks');
+    const kind = isAmb ? 'ambience' : 'music';
     editor.append(h('section', { class: 'pl-section' },
       h('div', { class: 'pl-sechead' },
-        h('h3', { class: 'pl-h' }, 'Music'),
-        h('span', { class: 'meta num' }, `${pl.tracks.length} ${pl.tracks.length === 1 ? 'track' : 'tracks'} · ${fmtDuration(total)}`),
+        h('h3', { class: 'pl-h' }, isAmb ? 'Ambience' : 'Music'),
+        h('span', { class: 'meta num' }, `${plural(pl.tracks.length, 'track')} · ${fmtDuration(total)}`),
         h('span', { class: 'pl-spacer' }),
-        SITE ? addButton(pl.dir, 'Add music') : h('button', { class: 'btn btn-sm', type: 'button', onclick: async () => {
-          const ids = await pickSound({ library, title: `Add music to ${pl.name}`, kind: 'music', multi: true });
+        SITE ? addButton(pl.dir, isAmb ? 'Add ambience' : 'Add music') : h('button', { class: 'btn btn-sm', type: 'button', onclick: async () => {
+          const ids = await pickSound({ library, title: `Add ${kind} to ${pl.name}`, kind, multi: true });
           if (ids) playlists.addTracks(pl.id, ids);
-        } }, icon('plus'), 'Add music')),
+        } }, icon('plus'), isAmb ? 'Add ambience' : 'Add music')),
       tracks,
       SITE && pl.tracks.length > 1 ? h('p', { class: 'meta pl-order' }, 'Tracks play in file-name order. Rename them to start with 01, 02… to change it.') : null,
       options(pl)));
 
-    // ambience
+    if (isAmb) {
+      const starters = playlists.ofKind('music').filter((m) => playlists.ambienceFor(m)?.id === pl.id).map((m) => m.name);
+      editor.append(h('p', { class: 'meta pl-note' },
+        'Plays under the music and the soundboard, so it keeps going when a music playlist starts. Starting another ambience playlist takes its place.',
+        starters.length ? ` It also starts with ${starters.join(', ')}.` : ''));
+      return;
+    }
+
+    // the ambience under a music playlist: an ambience playlist, and extra layers that loop all at once
+    const linked = playlists.ambienceFor(pl);
+    const ambSel = h('select', { class: 'select pl-ambsel', 'aria-label': 'Ambience playlist that starts with it' },
+      h('option', { value: '' }, 'No ambience playlist'),
+      playlists.ofKind('ambience').map((a) => h('option', { value: a.id, selected: linked?.id === a.id }, `${a.name}${pl.withAmbience === undefined && linked?.id === a.id ? ' (same name)' : ''}`)));
+    ambSel.addEventListener('change', () => { playlists.update(pl.id, { withAmbience: ambSel.value || null }); renderList(); });
     const amb = h('ul', { class: 'pl-amb', role: 'list' });
     for (const a of pl.ambience) amb.append(ambRow(pl, a));
-    if (!pl.ambience.length) amb.append(h('li', { class: 'pl-drop-empty' }, 'No ambience: whatever is already playing keeps going when this playlist starts.'));
+    if (!pl.ambience.length) amb.append(h('li', { class: 'pl-drop-empty' }, 'No extra layers: layers already running keep going when this playlist starts.'));
     wireDrop(amb, pl, 'ambience');
     editor.append(h('section', { class: 'pl-section' },
       h('div', { class: 'pl-sechead' },
         h('h3', { class: 'pl-h' }, 'Ambience'),
-        h('span', { class: 'meta' }, 'loops under the music while this playlist plays'),
+        h('span', { class: 'meta' }, linked ? 'starts with this playlist and plays under it' : 'none starts with this playlist'),
+        h('span', { class: 'pl-spacer' }),
+        ambSel),
+      h('div', { class: 'pl-sechead pl-subhead' },
+        h('h4', { class: 'pl-h4' }, 'Extra layers'),
+        h('span', { class: 'meta' }, 'loop on top, all at once'),
         h('span', { class: 'pl-spacer' }),
         h('button', { class: 'btn btn-sm', type: 'button', onclick: async () => {
-          const ids = await pickSound({ library, title: `Ambience for ${pl.name}`, kind: 'ambience', multi: true });
+          const ids = await pickSound({ library, title: `Layers for ${pl.name}`, kind: 'ambience', multi: true });
           if (ids) playlists.addAmbience(pl.id, ids);
-        } }, icon('plus'), 'Add ambience')),
+        } }, icon('plus'), 'Add layer')),
       amb));
   }
 
   function trackRow(pl, id, i) {
     const s = library.get(id);
-    const current = engine.music.playlistId === pl.id && engine.music.voice?.sound.id === id;
+    const deck = engine.deckFor(pl);
+    const current = deck.playlistId === pl.id && deck.voice?.sound.id === id;
     const [a, b] = s ? library.region(s) : [0, 0];
     const row = h('li', { class: `pl-track ${current ? 'is-live' : ''}`, draggable: !SITE, 'data-index': i },
       SITE ? h('span') : h('span', { class: 'pl-grip', 'aria-hidden': 'true' }, icon('grip', 'icon-sm')),
@@ -158,6 +206,7 @@ export default function createPlaylists({ el, getState, setState }) {
       h('span', { class: 'pl-tname truncate' }, s ? s.name : 'Missing sound'),
       s?.flags?.length ? h('span', { class: 'meta pl-flagcount', title: `${s.flags.length} flags` }, icon('flag', 'icon-sm'), String(s.flags.length)) : h('span'),
       h('span', { class: 'pl-dur num meta' }, s ? fmtTime(b - a) : '–'),
+      s ? previewButton(s) : h('span'),
       h('button', { class: 'btn-icon btn-sm', type: 'button', title: 'Play the playlist from here', 'aria-label': `Play from ${s?.name}`, onclick: () => playlists.play(pl.id, { index: i }) }, icon('play')),
       SITE ? h('button', { class: 'btn-icon btn-sm', type: 'button', title: 'Rename, move or delete', 'aria-label': `More for ${s?.name}`, disabled: !s, onclick: (e) => showMenu(e.currentTarget, soundItems(s), { align: 'end' }) }, icon('more'))
         : h('button', { class: 'btn-icon btn-sm', type: 'button', title: 'Remove from the playlist', 'aria-label': `Remove ${s?.name}`, onclick: () => {
@@ -192,20 +241,22 @@ export default function createPlaylists({ el, getState, setState }) {
   }
 
   function options(pl) {
+    const deck = engine.deckFor(pl);
+    const mine = () => deck.playlistId === pl.id;
     const shuffle = h('input', { type: 'checkbox', checked: !!pl.shuffle });
-    shuffle.addEventListener('change', () => { playlists.update(pl.id, { shuffle: shuffle.checked }); if (engine.music.playlistId === pl.id) engine.setShuffle(shuffle.checked); });
+    shuffle.addEventListener('change', () => { playlists.update(pl.id, { shuffle: shuffle.checked }); if (mine()) deck.setShuffle(shuffle.checked); });
     const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Repeat' });
     for (const [mode, label] of [['off', 'Once'], ['all', 'Repeat all'], ['one', 'Repeat track']]) {
       seg.append(h('button', { type: 'button', 'aria-pressed': String((pl.repeat || 'all') === mode), title: REPEAT[mode], onclick: () => {
         playlists.update(pl.id, { repeat: mode });
-        if (engine.music.playlistId === pl.id) engine.setRepeat(mode);
+        if (mine()) deck.setRepeat(mode);
         renderEditor();
       } }, label));
     }
     const xf = h('input', { class: 'range', type: 'range', min: 0, max: 10, step: 0.5, value: pl.crossfade ?? 3, 'aria-label': 'Crossfade seconds' });
     const xfNum = h('span', { class: 'num meta' });
     const sync = () => { xf.style.setProperty('--fill', `${(xf.value / 10) * 100}%`); xfNum.textContent = `${Number(xf.value).toFixed(1)} s`; };
-    xf.addEventListener('input', () => { sync(); playlists.update(pl.id, { crossfade: Number(xf.value) }); if (engine.music.playlistId === pl.id) engine.music.crossfade = Number(xf.value); });
+    xf.addEventListener('input', () => { sync(); playlists.update(pl.id, { crossfade: Number(xf.value) }); if (mine()) deck.crossfade = Number(xf.value); });
     sync();
     return h('div', { class: 'pl-opts' },
       h('label', { class: 'switch' }, shuffle, h('span', null, 'Shuffle')),
@@ -248,8 +299,10 @@ export default function createPlaylists({ el, getState, setState }) {
   const offs = [
     bus.on('state:playlists', () => { renderList(); if (!editor.contains(document.activeElement) || document.activeElement.tagName === 'BUTTON') renderEditor(); }),
     bus.on('library', () => { renderList(); renderEditor(); }),
+    bus.on('audio:route', () => syncPreviewButtons(el)),
     bus.on('audio', () => {
-      const key = `${engine.music.playlistId}|${engine.music.voice?.sound.id}|${[...engine.layers.keys()].join(',')}`;
+      syncPreviewButtons(el);
+      const key = [engine.music, engine.ambience].map((d) => `${d.playlistId}|${d.voice?.sound.id}`).join('|') + `|${[...engine.layers.keys()].join(',')}`;
       if (key !== liveKey) { liveKey = key; renderList(); if (!editor.contains(document.activeElement)) renderEditor(); }
     }),
   ];

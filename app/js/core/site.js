@@ -18,7 +18,7 @@ export const SETUP_PATH = 'screen/setup.json';
 
 export const CATEGORIES = [
   { dir: 'Music', kind: 'music', label: 'Music', one: 'playlist' },
-  { dir: 'Ambience', kind: 'ambience', label: 'Ambience', one: 'ambience folder' },
+  { dir: 'Ambience', kind: 'ambience', label: 'Ambience', one: 'ambience playlist' },
   { dir: 'Effects', kind: 'effect', label: 'Effects', one: 'pad bank' },
 ];
 const CATEGORY_NAMES = { music: 'music', ambience: 'ambience', ambiance: 'ambience', ambient: 'ambience', effects: 'effect', effect: 'effect', sfx: 'effect', soundboard: 'effect' };
@@ -79,10 +79,10 @@ export function folderReadme(dir) {
   const name = folderName(dir);
   const what = {
     music: `The **${name}** playlist. Every audio file in this folder is one of its tracks, played in file-name order. Its number key is set on the screen.`,
-    ambience: `Ambience called **${name}**. These loop under the music, and start by themselves with the **${name}** playlist (the folder in sounds/Music with the same name).`,
+    ambience: `The **${name}** ambience playlist. Its files play one after another in file-name order, under the music and the soundboard, and it starts by itself with the **${name}** music playlist (the folder in sounds/Music with the same name). Its number key is set on the screen.`,
     effect: `The **${name}** bank of soundboard pads. Each sound here gets the next free letter key; change keys, labels and how pads play on the screen.`,
   }[kind] || `Sounds in **${name}**. They appear in the Sound library.`;
-  return `# ${name}\n\n${what}\n\n**To add sounds:** choose **Add file**, then **Upload files**, drop in your MP3s and press **Commit changes**. They show up on the DM screen about a minute later.\n\nNaming rules and the rest of the folders: [sounds/README.md](${'../'.repeat(Math.max(1, dir.split('/').length))}README.md)\n`;
+  return `# ${name}\n\n${what}\n\n**To add sounds:** choose **Add file**, then **Upload files**, drop in your MP3s (up to 25 MB each) and press **Commit changes**. They show up on the DM screen about a minute later.\n\nNaming rules and the rest of the folders: [sounds/README.md](${'../'.repeat(Math.max(1, dir.split('/').length))}README.md)\n`;
 }
 
 // ---- storage helpers -------------------------------------------------------------------------
@@ -445,7 +445,8 @@ function remapDoc(doc, map) {
   for (const pl of d.playlists?.list || []) {
     if (pl.dir) { pl.dir = map(pl.dir); pl.id = pl.dir; }
     for (const a of pl.ambience || []) a.id = map(a.id);
-    pl.seenAmbience = (pl.seenAmbience || []).map(map);
+    if (pl.seenAmbience) pl.seenAmbience = pl.seenAmbience.map(map);
+    if (pl.withAmbience) pl.withAmbience = map(pl.withAmbience);
   }
   for (const b of d.boards?.banks || []) {
     if (b.dir) { b.dir = map(b.dir); b.id = b.dir; }
@@ -456,27 +457,18 @@ function remapDoc(doc, map) {
   return d;
 }
 
-/** A sound left its folder: that folder's pad bank and playlist let go of it, so the new folder's pick it up. */
+/** A sound left its folder: that folder's pad bank lets go of it, so the new folder's picks it up. */
 function leaveGroup(d, id, oldGroup) {
   for (const b of d.boards?.banks || []) {
     if (b.dir !== oldGroup) continue;
     for (const [k, p] of Object.entries(b.pads || {})) if (p?.sound === id) delete b.pads[k];
     b.seen = (b.seen || []).filter((x) => x !== id);
   }
-  const name = folderName(oldGroup).toLowerCase();
-  for (const pl of d.playlists?.list || []) {
-    if (!pl.dir || folderName(pl.dir).toLowerCase() !== name) continue;
-    pl.ambience = (pl.ambience || []).filter((a) => a.id !== id);
-    pl.seenAmbience = (pl.seenAmbience || []).filter((x) => x !== id);
-  }
 }
 
 function forget(d, id) {
   delete d.sounds[id];
-  for (const pl of d.playlists?.list || []) {
-    pl.ambience = (pl.ambience || []).filter((a) => a.id !== id);
-    pl.seenAmbience = (pl.seenAmbience || []).filter((x) => x !== id);
-  }
+  for (const pl of d.playlists?.list || []) pl.ambience = (pl.ambience || []).filter((a) => a.id !== id);
   for (const b of d.boards?.banks || []) {
     for (const [k, p] of Object.entries(b.pads || {})) if (p?.sound === id) delete b.pads[k];
     b.seen = (b.seen || []).filter((x) => x !== id);
@@ -553,17 +545,18 @@ export async function createFolder(parent, name) {
   return dir;
 }
 
-export async function renameFolder(dir, newName) {
+/** Rename a folder, or with parent, move it there (a playlist to Ambience and back). */
+export async function renameFolder(dir, newName, parent = dirOf(dir)) {
   needGitHub();
   const clean = cleanName(newName);
   if (!clean) throw new Error('Give the folder a name.');
-  const to = joinPath(dirOf(dir), `${orderPrefix(baseOf(dir))}${clean}`);
+  const to = joinPath(parent, `${orderPrefix(baseOf(dir))}${clean}`);
   if (to === dir) return { from: dir, to };
-  if (view.folders.some((d) => d !== dir && d.toLowerCase() === to.toLowerCase())) throw new Error(`There is already a folder called ${clean}.`);
+  if (view.folders.some((d) => d !== dir && d.toLowerCase() === to.toLowerCase())) throw new Error(`There is already a folder called ${clean}${parent === dirOf(dir) ? '' : ` in ${parent}`}.`);
   const doc = remapDoc(setup.doc, (id) => moveUnder(id, dir, to));
   const text = setupText(doc);
   const prefix = `${SOUNDS}/${dir}/`;
-  await github.commit(`Rename the folder ${dir} to ${baseOf(to)}`, async (listTree) => {
+  await github.commit(parent === dirOf(dir) ? `Rename the folder ${dir} to ${baseOf(to)}` : `Move the folder ${dir} to ${parent}`, async (listTree) => {
     const moves = [];
     for (const e of await listTree()) {
       if (e.type !== 'blob' || !e.path.startsWith(prefix)) continue;

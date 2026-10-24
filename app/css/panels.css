@@ -66,6 +66,10 @@
 .cn-plrow:hover .icon { color: var(--text); }
 .cn-plname { font-weight: 500; }
 .kbd.is-blank { color: var(--faint); border-style: dashed; }
+.cn-ambline { display: flex; align-items: center; gap: 12px; min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
+.cn-ambnow { flex: 1; min-width: 0; }
+.cn-ambpl { color: var(--muted); }
+.cn-ambctl { display: flex; align-items: center; gap: 2px; flex: none; }
 
 .cn-mixer { padding: 12px var(--pad-lg) var(--pad-lg); border-top: 1px solid var(--border); flex: 1 0 auto; display: flex; flex-direction: column; gap: 10px; min-height: 220px; }
 .cn-mixhead { display: flex; align-items: center; gap: 8px; }
@@ -195,10 +199,15 @@ button.pd-key:active, .pd-key.is-hit { transform: translateY(1px); }
 
 /* ---------- Playlists ---------------------------------------------------------- */
 .pl { flex: 1; display: grid; grid-template-columns: minmax(200px, 250px) minmax(0, 1fr); min-height: 0; }
-.pl-side { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--border); }
-.pl-sidehead { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px var(--pad); border-bottom: 1px solid var(--rule); }
+.pl-side { display: flex; flex-direction: column; min-height: 0; overflow: auto; border-right: 1px solid var(--border); }
+.pl-sidehead {
+  position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px var(--pad); background: var(--pane); border-bottom: 1px solid var(--rule);
+}
+.pl-list + .pl-sidehead { margin-top: 14px; border-top: 1px solid var(--rule); }
 .pl-h { font: 500 15px / 1.2 var(--font-ui); }
-.pl-list { flex: 1; overflow: auto; }
+.pl-h4 { font: 500 14px / 1.2 var(--font-ui); color: var(--muted); }
+.pl-list { flex: none; }
 .pl-none { padding: 12px; }
 .pl-row {
   display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 6px var(--pad); text-align: left;
@@ -219,6 +228,9 @@ button.pd-key:active, .pd-key.is-hit { transform: translateY(1px); }
 .pl-keysel { width: auto; min-width: 110px; }
 .pl-section { display: flex; flex-direction: column; gap: 6px; }
 .pl-sechead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding-bottom: 4px; }
+.pl-subhead { align-items: center; padding-top: 6px; }
+.pl-ambsel { width: auto; min-width: 180px; max-width: 100%; align-self: center; }
+.pl-note { max-width: 72ch; }
 .pl-spacer { flex: 1; }
 .pl-tracks, .pl-amb { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); min-height: 44px; }
 .pl-tracks.is-over, .pl-amb.is-over { outline: 1px dashed var(--accent); outline-offset: 2px; }
@@ -240,7 +252,14 @@ button.pd-key:active, .pd-key.is-hit { transform: translateY(1px); }
 .pl-xf .range { width: 120px; }
 @container (max-width: 600px) {
   .pl { display: flex; flex-direction: column; }
-  .pl-side { flex: 0 1 auto; max-height: 42%; border-right: 0; border-bottom: 1px solid var(--border); }
+  /* narrow: music and ambience side by side above the editor, each list scrolling */
+  .pl-side {
+    flex: 0 1 auto; max-height: 42%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto minmax(0, 1fr);
+    grid-auto-flow: column; overflow: hidden; border-right: 0; border-bottom: 1px solid var(--border);
+  }
+  .pl-list { overflow: auto; }
+  .pl-list + .pl-sidehead { margin-top: 0; border-top: 0; }
+  .pl-sidehead ~ .pl-sidehead, .pl-sidehead ~ .pl-sidehead + .pl-list { border-left: 1px solid var(--rule); }
   .pl-editor { flex: 1 1 0; min-height: 0; }
 }
 
@@ -269,7 +288,7 @@ button.pd-key:active, .pd-key.is-hit { transform: translateY(1px); }
 .lb-row:focus-visible { box-shadow: inset 0 0 0 1px var(--focus); }
 .lb-row.is-selected { background: var(--raised-3); }
 .lb-row[draggable="true"]:active { cursor: grabbing; }
-.lb-play.is-on { color: var(--accent); }
+.lb-play.is-on, .cue-btn.is-on { color: var(--accent); }
 .lb-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .lb-dur { flex: none; color: var(--muted); font-size: 14px; }
 .lb-detail { min-width: 0; min-height: 0; overflow: auto; position: relative; }

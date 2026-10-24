@@ -9,6 +9,7 @@ import { library, KIND_LABEL } from '../core/library.js';
 import { openDialog, showMenu, toast } from '../core/ui.js';
 import { fmtTime, parseTime, hostOf } from '../core/util.js';
 import { engine } from '../audio/engine.js';
+import { previewButton, syncPreviewButtons } from '../audio/cue.js';
 import { board, ROWS } from '../audio/board.js';
 import { playlists } from '../audio/playlists.js';
 import { createEditor } from './editor.js';
@@ -162,7 +163,7 @@ export default function createLibrary({ el, getState, setState, workspace }) {
     if (!all.length && !term) {
       listEl.prepend(h('div', { class: 'empty lb-siteempty' },
         h('strong', null, 'No sounds on GitHub yet'),
-        h('span', null, 'Each folder below is a playlist, an ambience folder or a bank of pads. Press its Add button, drop MP3s on GitHub’s upload page and commit; they appear here a minute later.')));
+        h('span', null, 'Each folder below is a playlist, an ambience playlist or a bank of pads. Press its Add button, drop MP3s on GitHub’s upload page and commit; they appear here a minute later.')));
     } else if (term && !shown) {
       listEl.append(h('p', { class: 'meta lb-none' }, `No sounds match “${search.value}”.`));
     }
@@ -204,7 +205,8 @@ export default function createLibrary({ el, getState, setState, workspace }) {
       h('span', { class: 'lb-name' },
         h('span', { class: 'truncate' }, s.name),
         h('span', { class: 'meta truncate' }, [KIND_LABEL[s.kind], s.flags?.length ? `${s.flags.length} ${s.flags.length === 1 ? 'flag' : 'flags'}` : null, s.repeat === 0 ? 'loops' : s.repeat > 1 ? `plays ${s.repeat}×` : null, s.status === 'analyzing' ? 'reading…' : null].filter(Boolean).join(' · '))),
-      h('span', { class: 'lb-dur num' }, fmtTime(s.duration)));
+      h('span', { class: 'lb-dur num' }, fmtTime(s.duration)),
+      previewButton(s));
       return row;
     }
   }
@@ -212,14 +214,21 @@ export default function createLibrary({ el, getState, setState, workspace }) {
   function rowMenu(s, at) {
     const bank = board.active();
     const empty = ROWS.slice(1).flatMap((r) => r.keys).filter((k) => !board.reserved(k) && !bank.pads[k]).slice(0, 14);
-    const lists = playlists.list();
+    // an ambience sound joins a music playlist as a layer; on the website a playlist's tracks are its
+    // folder's files, so there only layers can be added
+    const lists = playlists.list().flatMap((pl) => {
+      const layer = pl.kind !== 'ambience' && s.kind === 'ambience';
+      if (!layer && (SITE || (pl.kind === 'ambience') !== (s.kind === 'ambience'))) return [];
+      return [{ label: pl.name, hint: layer ? 'as a layer' : pl.kind === 'ambience' ? 'ambience' : '', onClick: () => {
+        if (layer) playlists.addAmbience(pl.id, [s.id]); else playlists.addTracks(pl.id, [s.id]);
+        toast(`Added to ${pl.name}.`, { type: 'ok' });
+      } }];
+    });
     showMenu(at, [
       { label: PLAY_HINT[s.kind], icon: 'play', onClick: () => playForTable(s) },
+      { label: engine.previewing(s.id) ? 'Stop the preview' : 'Preview', icon: 'headphones', hint: engine.previewRoute === 'device' ? 'only you' : '', onClick: () => engine.togglePreview(s) },
       { label: 'Open in the editor', icon: 'edit', onClick: () => select(s.id) },
-      lists.length ? { label: 'Add to a playlist', icon: 'playlist', submenu: lists.map((pl) => ({ label: pl.name, onClick: () => {
-        if (s.kind === 'ambience') playlists.addAmbience(pl.id, [s.id]); else playlists.addTracks(pl.id, [s.id]);
-        toast(`Added to ${pl.name}.`, { type: 'ok' });
-      } })) } : null,
+      lists.length ? { label: 'Add to a playlist', icon: 'playlist', submenu: lists } : null,
       empty.length ? { label: `Put on a pad (${bank.name})`, icon: 'keyboard', submenu: empty.map((k) => ({ label: `Key ${k}`, onClick: () => {
         board.setPad(k, { sound: s.id, label: s.name, mode: s.repeat === 0 ? 'toggle' : 'once', volume: 1 });
         toast(`${s.name} is on ${k}. Alt+${k} fires it.`, { type: 'ok' });
@@ -356,6 +365,7 @@ export default function createLibrary({ el, getState, setState, workspace }) {
     }),
     bus.on('jobs', renderJobs),
     bus.on('audio', () => {
+      syncPreviewButtons(listEl);
       const key = `${engine.music.voice?.sound.id}|${engine.music.voice?.state}|${[...engine.layers.keys()].join(',')}|${engine.effectCount()}`;
       if (key !== liveKey) {
         liveKey = key;
@@ -369,6 +379,7 @@ export default function createLibrary({ el, getState, setState, workspace }) {
         }
       }
     }),
+    bus.on('audio:route', () => syncPreviewButtons(listEl)),
     bus.on('library:open', (id) => select(id)),
     bus.on('site:publish', renderJobs),
     bus.on('library:moved', ({ from, to }) => {

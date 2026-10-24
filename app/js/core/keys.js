@@ -94,6 +94,8 @@ keys.define('effects.stop', { label: 'Stop all effects', combo: 'Alt+Backspace',
 keys.define('bank.prev', { label: 'Previous pad bank', combo: 'Alt+Up', group: 'board' });
 keys.define('bank.next', { label: 'Next pad bank', combo: 'Alt+Down', group: 'board' });
 keys.define('pane.max', { label: 'Maximise or restore the focused pane', combo: 'Alt+Enter', group: 'screen' });
+keys.define('pane.hide', { label: 'Hide the focused pane (the others take its space)', combo: 'Alt+Shift+H', group: 'screen' });
+keys.define('pane.show', { label: 'Show every hidden pane again', combo: 'Alt+Shift+S', group: 'screen' });
 keys.define('help', { label: 'Show the shortcuts', combo: 'Alt+/', group: 'screen' });
 digitActions('playlist', (n) => `Start playlist ${n}`, (n) => `Alt+${n}`);
 digitActions('flag', (n) => `Jump to flag ${n} of the playing track`, (n) => `Alt+Shift+${n}`);
@@ -157,36 +159,83 @@ window.addEventListener('keyup', (e) => {
 }, true);
 
 // When a site's frame takes the keyboard, the screen can't hear keys until you click back.
-// A frame that grabs focus on its own (an autofocused password box) gets it taken straight back; only a
-// frame you are pointing at keeps it. With "give the keyboard back" on, leaving the frame for a moment
-// returns the keys to the screen.
-let hoveredFrame = null;
+// A frame that grabs focus on its own (an autofocused password box) gets it taken back once; a frame you
+// are pointing at, clicked, tapped or tabbed into keeps it. Sites from another address show the screen
+// no pointer events at all, so "pointing at" means the pointer was last seen at the frame's edge or
+// inside it. A frame that takes the focus straight back is left with it rather than fought: that
+// tug-of-war ran hundreds of times a second and froze the screen. With "give the keyboard back" on,
+// pointing back at the screen for a moment returns the keys.
+const NEAR = 24;                        // px around a frame that still count as pointing at it
+const pointer = { x: -1, y: -1, type: 'mouse', downAt: 0 };
+const frameUsed = new WeakMap();        // same-address frame -> when it last had a tap or a key
+let tabAt = 0;
+let taken = { frame: null, at: 0 };     // the last frame the keys were taken back from
 let leaveTimer = null;
-document.addEventListener('mouseover', (e) => {
-  if (e.target.tagName === 'IFRAME') { hoveredFrame = e.target; clearTimeout(leaveTimer); }
-}, true);
-document.addEventListener('mouseout', (e) => {
-  if (e.target.tagName !== 'IFRAME') return;
-  const frame = e.target;
-  if (hoveredFrame === frame) hoveredFrame = null;
-  clearTimeout(leaveTimer);
+
+function near(frame, pad = NEAR) {
+  const r = frame.getBoundingClientRect();
+  return pointer.x >= r.left - pad && pointer.x <= r.right + pad && pointer.y >= r.top - pad && pointer.y <= r.bottom + pad;
+}
+function frameDoc(frame) {
+  try { return frame.contentDocument; } catch { return null; }
+}
+/** Did you put the keys in this frame, rather than the frame taking them? */
+function chosen(frame) {
+  const now = performance.now();
+  if (now - tabAt < 400) return true;
+  if (frameDoc(frame)) return now - (frameUsed.get(frame) || 0) < 1000;
+  if (pointer.type === 'mouse') return near(frame);
+  // a tap in another site's frame: the page has a fresh tap that didn't land on the screen itself
+  return !!navigator.userActivation?.isActive && now - pointer.downAt > 400;
+}
+
+const seen = (e) => {
+  pointer.x = e.clientX;
+  pointer.y = e.clientY;
+  pointer.type = e.pointerType || 'mouse';
+};
+document.addEventListener('pointermove', (e) => {
+  seen(e);
+  const f = keys.paused;
+  if (!f || e.target === f || near(f) || leaveTimer) return;
   leaveTimer = setTimeout(() => {
-    if (document.activeElement === frame && hoveredFrame !== frame && state.get('settings')?.returnFocus) {
+    leaveTimer = null;
+    if (keys.paused === f && !near(f) && state.get('settings')?.returnFocus) {
       keys.reclaim();
       window.focus();
     }
   }, 700);
+}, { capture: true, passive: true });
+document.addEventListener('pointerover', seen, { capture: true, passive: true });
+document.addEventListener('pointerdown', (e) => { seen(e); pointer.downAt = performance.now(); }, { capture: true, passive: true });
+document.addEventListener('keydown', (e) => { if (e.key === 'Tab') tabAt = performance.now(); }, true);
+// Frames from the screen's own address (Stone Wardens on the website) can be watched from inside.
+document.addEventListener('load', (e) => {
+  const frame = e.target;
+  const doc = frame.tagName === 'IFRAME' && frameDoc(frame);
+  if (!doc) return;
+  const used = () => frameUsed.set(frame, performance.now());
+  for (const type of ['pointerdown', 'keydown']) doc.addEventListener(type, used, { capture: true, passive: true });
 }, true);
+
 window.addEventListener('blur', () => {
   setTimeout(() => {
     const a = document.activeElement;
     if (!a || a.tagName !== 'IFRAME') return;
-    if (a !== hoveredFrame) { keys.reclaim(); return; }
+    const now = performance.now();
+    const again = taken.frame === a && now - taken.at < 2000;
+    if (!again && !chosen(a)) {
+      taken = { frame: a, at: now };
+      keys.reclaim();
+      return;
+    }
     keys.paused = a;
     bus.emit('keys:paused', a);
   }, 0);
 });
 window.addEventListener('focus', () => {
+  clearTimeout(leaveTimer);
+  leaveTimer = null;
   if (keys.paused) {
     keys.paused = null;
     bus.emit('keys:resumed');

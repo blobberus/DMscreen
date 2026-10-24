@@ -1,12 +1,13 @@
 // The audio engine. One AudioContext, three buses (music, ambience, effects) into a duck stage,
 // a master fader and a safety limiter. It runs on its own, so rearranging panes never stops a sound.
 //
-//   music:    one deck playing a playlist (or a single track), crossfading between tracks
-//   ambience: any number of looping layers, each with its own level
+//   music:    one deck playing a music playlist (or a single track), crossfading between tracks
+//   ambience: a second deck for ambience playlists, and any number of looping layers, each with its own level
 //   effects:  soundboard pads (once / overlap / toggle loop), from any flag to the next
 //
 // Short files (two minutes or less) are decoded into memory and start instantly; longer ones stream
 // through <audio> elements so an hour of rain never sits in RAM.
+// Previews (auditioning a sound) have their own bus, which can go to a second device such as headphones.
 // Emits 'audio' when what is playing changes and 'audio:tick' on animation frames while playing.
 import { library } from '../core/library.js';
 import { state } from '../core/state.js';
@@ -314,6 +315,160 @@ class BufferVoice extends Voice {
 }
 
 // ---------------------------------------------------------------------------
+// Decks
+// ---------------------------------------------------------------------------
+
+/**
+ * A playlist playing track after track, crossfading between them. The music deck plays music playlists
+ * and the ambience deck ambience playlists, each on its own bus, so a scene's music, its ambience and
+ * the pads all play at once. On the ambience deck each track plays once per pass (ambience files are
+ * set to loop forever) and the deck's repeat decides what comes next.
+ */
+class Deck {
+  constructor(engine, busName, { once = false } = {}) {
+    this.engine = engine;
+    this.bus = busName;
+    this.once = once;
+    this.voice = null;
+    this.playlistId = null;
+    this.queue = [];
+    this.order = [];
+    this.index = -1;
+    this.repeat = 'all';
+    this.shuffle = false;
+    this.crossfade = 3;
+    this.lastSound = null;
+  }
+  get track() { return this.voice?.sound || null; }
+  get playing() { return this.voice?.state === 'playing' || this.voice?.state === 'loading'; }
+  playlist() {
+    return state.get('playlists').list.find((p) => p.id === this.playlistId) || null;
+  }
+
+  play(pl, { index = 0, fade } = {}) {
+    const tracks = (pl.tracks || []).filter((id) => library.has(id));
+    this.playlistId = pl.id;
+    this.repeat = pl.repeat || 'all';
+    this.shuffle = !!pl.shuffle;
+    this.crossfade = pl.crossfade ?? state.get('settings').crossfade;
+    this.order = tracks;
+    this.queue = this.shuffle ? shuffled(tracks) : tracks.slice();
+    if (this.shuffle && index > 0 && tracks[index]) {
+      this.queue = [tracks[index], ...this.queue.filter((id) => id !== tracks[index])];
+      index = 0;
+    }
+    if (this.queue.length) this.playAt(index, { fade: fade ?? this.crossfade });
+    else this.stop(this.crossfade);
+    this.engine.changed();
+  }
+
+  playSingle(sound, { fade = 1 } = {}) {
+    this.playlistId = null;
+    this.queue = [sound.id];
+    this.order = [sound.id];
+    this.repeat = 'off';
+    this.playAt(0, { fade });
+  }
+
+  playAt(i, { fade = this.crossfade, at = 0 } = {}) {
+    const id = this.queue[i];
+    const s = id && library.get(id);
+    if (!s) return;
+    const old = this.voice;
+    const v = this.engine.voice(s, this.bus, {
+      ...(this.once ? { repeat: 1, loopFade: 0 } : {}),
+      fadeIn: old ? Math.max(fade, 0.05) : (s.fadeIn || 0.05),
+      onEnd: (voice) => this.ended(voice),
+      onApproach: { lead: Math.max(0.1, this.crossfade), run: (voice) => this.approaching(voice) },
+    });
+    this.voice = v;
+    this.index = i;
+    this.lastSound = s.id;
+    this.engine.startVoice(v, at);
+    if (old) old.stop(Math.max(fade, 0.05));
+    this.engine.changed();
+  }
+
+  nextIndex(step = 1) {
+    const n = this.queue.length;
+    if (!n) return -1;
+    if (this.repeat === 'one') return this.index;
+    const j = this.index + step;
+    if (j >= n) return this.repeat === 'all' ? 0 : -1;
+    if (j < 0) return this.repeat === 'all' ? n - 1 : 0;
+    return j;
+  }
+
+  approaching(voice) {
+    if (voice !== this.voice || this.crossfade <= 0.15) return;
+    const j = this.nextIndex(1);
+    if (j < 0) return;
+    voice.advanced = true;
+    if (this.repeat === 'one') { this.playAt(j, { fade: this.crossfade }); return; }
+    if (j === 0 && this.shuffle) this.queue = shuffled(this.order);
+    this.playAt(j, { fade: this.crossfade });
+  }
+
+  ended(voice) {
+    if (voice !== this.voice) return;
+    if (voice.advanced) return;
+    const j = this.nextIndex(1);
+    if (j < 0) { this.voice = null; this.engine.changed(); return; }
+    if (j === 0 && this.shuffle && this.repeat === 'all') this.queue = shuffled(this.order);
+    this.playAt(j, { fade: 0.05 });
+  }
+
+  /** Pause, resume, or play again from the last track. False when there is nothing to play. */
+  toggle() {
+    const v = this.voice;
+    if (v && v.state === 'playing') { v.pause(); return true; }
+    if (v && v.state === 'paused') { v.resume(); return true; }
+    if (this.queue.length) { this.playAt(Math.max(0, this.index), { fade: 0.3 }); return true; }
+    return false;
+  }
+  next() {
+    if (!this.queue.length) return;
+    let j = this.index + 1;
+    if (j >= this.queue.length) { j = 0; if (this.shuffle) this.queue = shuffled(this.order); }
+    this.playAt(j, { fade: Math.min(1.2, this.crossfade || 0.05) });
+  }
+  prev() {
+    if (!this.queue.length) return;
+    if (this.voice && this.voice.position > 3) { this.voice.seek(0); return; }
+    const j = this.index - 1 < 0 ? this.queue.length - 1 : this.index - 1;
+    this.playAt(j, { fade: Math.min(1.2, this.crossfade || 0.05) });
+  }
+  seek(pos) { this.voice?.seek(pos); }
+  stop(fade = 1) {
+    this.voice?.stop(fade);
+    this.voice = null;
+    this.engine.changed();
+  }
+  setRepeat(mode) {
+    this.repeat = mode;
+    this.update({ repeat: mode });
+    this.engine.changed();
+  }
+  setShuffle(on) {
+    this.shuffle = on;
+    const current = this.queue[this.index];
+    this.queue = on ? [current, ...shuffled(this.order.filter((id) => id !== current))].filter(Boolean) : this.order.slice();
+    this.index = Math.max(0, this.queue.indexOf(current));
+    this.update({ shuffle: on });
+    this.engine.changed();
+  }
+  update(patch) {
+    const pl = this.playlist();
+    if (pl) state.update('playlists', () => Object.assign(pl, patch));
+  }
+  upNext() {
+    const j = this.nextIndex(1);
+    if (j < 0 || (j === this.index && this.repeat !== 'one')) return null;
+    return library.get(this.queue[j]);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The engine
 // ---------------------------------------------------------------------------
 
@@ -322,11 +477,14 @@ class Engine {
     this.voices = new Set();
     this.buses = {};
     this.buffers = new Map();
-    this.music = { voice: null, playlistId: null, queue: [], index: -1, repeat: 'all', shuffle: false, crossfade: 3, lastSound: null };
+    this.music = new Deck(this, 'music');
+    this.ambience = new Deck(this, 'ambience', { once: true });   // ambience playlists
     this.layers = new Map();      // soundId -> {voice, volume}
     this.pads = new Map();        // pad key -> Set<Voice>
     this.ducked = false;
     this.preview = null;
+    this.previewRoute = 'main';   // 'main', 'device' (the chosen output) or 'missing' (chosen, not connected: silent)
+    this.cue = null;              // {out, el}: the preview bus's way to another device
   }
 
   get ctx() { return ctx; }
@@ -350,8 +508,9 @@ class Engine {
       g.connect(name === 'music' || name === 'ambience' ? this.duck : this.master);
       this.buses[name] = g;
     }
-    this.buses.preview.gain.value = 0.9;
     this.applyLevels(true);
+    this.routePreview();
+    navigator.mediaDevices?.addEventListener?.('devicechange', () => this.routePreview());
     // Safari only lets sound start inside a tap (touchend or click), and "interrupts" it after a call
     // or another app's audio; any later tap or key wakes it again.
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* older Safari */ }
@@ -387,6 +546,7 @@ class Engine {
     const set = (param, v) => { param.cancelScheduledValues(t); param.setTargetAtTime(v, t, now ? 0.001 : 0.03); };
     set(this.master.gain, levelToGain(l.master));
     for (const b of ['music', 'ambience', 'effects']) set(this.buses[b].gain, levelToGain(l[b]));
+    set(this.buses.preview.gain, levelToGain(state.get('settings').previewLevel ?? 0.95));
     set(this.duck.gain, this.ducked ? state.get('settings').duckAmount : 1);
   }
   setLevel(name, v) {
@@ -448,146 +608,37 @@ class Engine {
     return v;
   }
 
-  // ---- music deck ------------------------------------------------------------
-  get track() { return this.music.voice?.sound || null; }
-  get playing() { return this.music.voice?.state === 'playing' || this.music.voice?.state === 'loading'; }
-  playlist() {
-    return state.get('playlists').list.find((p) => p.id === this.music.playlistId) || null;
-  }
+  // ---- decks ----------------------------------------------------------------
+  // The music deck plays music playlists; the ambience deck plays ambience playlists under it.
+  // The engine's own transport (togglePlay, next, prev, seek, ...) is the music deck's.
+  get track() { return this.music.track; }
+  get playing() { return this.music.playing; }
+  playlist() { return this.music.playlist(); }
+  deckFor(pl) { return pl?.kind === 'ambience' ? this.ambience : this.music; }
 
-  playPlaylist(pl, { index = 0, fade } = {}) {
+  playPlaylist(pl, opts = {}) {
     if (!pl) return;
-    const tracks = (pl.tracks || []).filter((id) => library.has(id));
-    const m = this.music;
-    m.playlistId = pl.id;
-    m.repeat = pl.repeat || 'all';
-    m.shuffle = !!pl.shuffle;
-    m.crossfade = pl.crossfade ?? state.get('settings').crossfade;
-    m.order = tracks;
-    m.queue = m.shuffle ? shuffled(tracks) : tracks.slice();
-    if (m.shuffle && index > 0 && tracks[index]) {
-      m.queue = [tracks[index], ...m.queue.filter((id) => id !== tracks[index])];
-      index = 0;
-    }
-    // A playlist with ambience replaces the layers; one without leaves whatever is playing.
-    if ((pl.ambience || []).length) this.setAmbience(pl.ambience, { fade: Math.max(1.5, m.crossfade) });
-    if (m.queue.length) this.playAt(index, { fade: fade ?? m.crossfade });
-    else { this.stopMusic(m.crossfade); }
-    this.changed();
+    const deck = this.deckFor(pl);
+    // A music playlist with layers replaces the layers; one without leaves whatever is playing.
+    if (deck === this.music && (pl.ambience || []).length) this.setAmbience(pl.ambience, { fade: Math.max(1.5, pl.crossfade ?? state.get('settings').crossfade) });
+    deck.play(pl, opts);
   }
-
-  playSingle(sound, { fade = 1 } = {}) {
-    const m = this.music;
-    m.playlistId = null;
-    m.queue = [sound.id];
-    m.order = [sound.id];
-    m.repeat = 'off';
-    this.playAt(0, { fade });
-  }
-
-  playAt(i, { fade = this.music.crossfade, at = 0 } = {}) {
-    const m = this.music;
-    const id = m.queue[i];
-    const s = id && library.get(id);
-    if (!s) return;
-    const old = m.voice;
-    const v = this.voice(s, 'music', {
-      fadeIn: old ? Math.max(fade, 0.05) : (s.fadeIn || 0.05),
-      onEnd: (voice) => this.trackEnded(voice),
-      onApproach: { lead: Math.max(0.1, m.crossfade), run: (voice) => this.trackApproaching(voice) },
-    });
-    m.voice = v;
-    m.index = i;
-    m.lastSound = s.id;
-    this.startVoice(v, at);
-    if (old) old.stop(Math.max(fade, 0.05));
-    this.changed();
-  }
-
-  nextIndex(step = 1) {
-    const m = this.music;
-    const n = m.queue.length;
-    if (!n) return -1;
-    if (m.repeat === 'one') return m.index;
-    const j = m.index + step;
-    if (j >= n) return m.repeat === 'all' ? 0 : -1;
-    if (j < 0) return m.repeat === 'all' ? n - 1 : 0;
-    return j;
-  }
-
-  trackApproaching(voice) {
-    if (voice !== this.music.voice || this.music.crossfade <= 0.15) return;
-    const j = this.nextIndex(1);
-    if (j < 0) return;
-    voice.advanced = true;
-    if (this.music.repeat === 'one') { this.playAt(j, { fade: this.music.crossfade }); return; }
-    if (j === 0 && this.music.shuffle) this.music.queue = shuffled(this.music.order);
-    this.playAt(j, { fade: this.music.crossfade });
-  }
-
-  trackEnded(voice) {
-    if (voice !== this.music.voice) return;
-    if (voice.advanced) return;
-    const j = this.nextIndex(1);
-    if (j < 0) { this.music.voice = null; this.changed(); return; }
-    if (j === 0 && this.music.shuffle && this.music.repeat === 'all') this.music.queue = shuffled(this.music.order);
-    this.playAt(j, { fade: 0.05 });
-  }
+  playSingle(sound, opts) { this.music.playSingle(sound, opts); }
 
   togglePlay() {
     this.init();
-    const m = this.music;
-    const v = m.voice;
-    if (v && v.state === 'playing') { v.pause(); return; }
-    if (v && v.state === 'paused') { v.resume(); return; }
-    if (m.queue.length) { this.playAt(Math.max(0, m.index), { fade: 0.3 }); return; }
-    const pl = state.get('playlists').list.find((p) => p.tracks?.length);
+    if (this.music.toggle()) return;
+    const pl = state.get('playlists').list.find((p) => p.kind !== 'ambience' && p.tracks?.length);
     if (pl) this.playPlaylist(pl);
     else bus.emit('toast', { message: 'No music to play yet. Make a playlist or play a track from the library.' });
   }
-  next() {
-    const m = this.music;
-    if (!m.queue.length) return;
-    let j = m.index + 1;
-    if (j >= m.queue.length) { j = 0; if (m.shuffle) m.queue = shuffled(m.order); }
-    this.playAt(j, { fade: Math.min(1.2, m.crossfade || 0.05) });
-  }
-  prev() {
-    const m = this.music;
-    if (!m.queue.length) return;
-    if (m.voice && m.voice.position > 3) { m.voice.seek(0); return; }
-    const j = m.index - 1 < 0 ? m.queue.length - 1 : m.index - 1;
-    this.playAt(j, { fade: Math.min(1.2, m.crossfade || 0.05) });
-  }
-  seek(pos) { this.music.voice?.seek(pos); }
-  stopMusic(fade = 1) {
-    this.music.voice?.stop(fade);
-    this.music.voice = null;
-    this.changed();
-  }
-  setRepeat(mode) {
-    this.music.repeat = mode;
-    this.updatePlaylist({ repeat: mode });
-    this.changed();
-  }
-  setShuffle(on) {
-    const m = this.music;
-    m.shuffle = on;
-    const current = m.queue[m.index];
-    m.queue = on ? [current, ...shuffled(m.order.filter((id) => id !== current))].filter(Boolean) : m.order.slice();
-    m.index = Math.max(0, m.queue.indexOf(current));
-    this.updatePlaylist({ shuffle: on });
-    this.changed();
-  }
-  updatePlaylist(patch) {
-    const pl = this.playlist();
-    if (pl) state.update('playlists', () => Object.assign(pl, patch));
-  }
-  upNext() {
-    const j = this.nextIndex(1);
-    if (j < 0 || (j === this.music.index && this.music.repeat !== 'one')) return null;
-    return library.get(this.music.queue[j]);
-  }
+  next() { this.music.next(); }
+  prev() { this.music.prev(); }
+  seek(pos) { this.music.seek(pos); }
+  stopMusic(fade = 1) { this.music.stop(fade); }
+  setRepeat(mode) { this.music.setRepeat(mode); }
+  setShuffle(on) { this.music.setShuffle(on); }
+  upNext() { return this.music.upNext(); }
 
   // ---- flags (on the music deck) --------------------------------------------
   flags() {
@@ -704,11 +755,10 @@ class Engine {
 
   // ---- everything ---------------------------------------------------------------
   fadeAll(seconds = state.get('settings').fadeAll) {
-    const m = this.music;
-    if (m.voice) { m.voice.stop(seconds); m.voice = null; }
+    for (const deck of [this.music, this.ambience]) if (deck.voice) { deck.voice.stop(seconds); deck.voice = null; }
     for (const id of [...this.layers.keys()]) this.stopLayer(id, seconds);
     this.stopEffects(Math.min(seconds, 0.8));
-    this.stopPreview();
+    if (this.previewRoute !== 'device') this.stopPreview();     // a preview in your headphones isn't the table's
     this.changed();
   }
   anythingPlaying() { return [...this.voices].some((v) => v.state === 'playing'); }
@@ -717,6 +767,8 @@ class Engine {
   /** One preview at a time; it doesn't touch the deck, layers or pads. */
   previewSound(sound, { from, to, at = 0, loop = false, onEnd } = {}) {
     this.stopPreview(0.04);
+    if (this.previewRoute === 'missing') { this.missingOutput(); return null; }
+    if (this.previewRoute === 'device') this.cue.el.play().catch(() => {});
     const v = this.voice(sound, 'preview', { from, to, repeat: loop ? 0 : 1, fadeIn: 0.01, fadeOut: 0, loopFade: 0, onEnd: () => { if (this.preview === v) this.preview = null; onEnd?.(); this.changed(); } });
     this.preview = v;
     this.startVoice(v, at);
@@ -724,6 +776,82 @@ class Engine {
   }
   stopPreview(fade = 0.08) {
     if (this.preview) { this.preview.stop(fade); this.preview = null; this.changed(); }
+  }
+  /** Is this sound the one being previewed? */
+  previewing(id) {
+    return this.preview?.sound.id === id && ['loading', 'playing', 'paused'].includes(this.preview.state);
+  }
+  /** Preview the sound if it isn't already, stop it if it is. */
+  togglePreview(sound) {
+    if (this.previewing(sound.id)) this.stopPreview();
+    else { this.previewSound(sound); this.changed(); }
+  }
+
+  // ---- the preview output ----------------------------------------------------------------
+  // With an output chosen, the preview bus leaves the master and goes, as a MediaStream, to an <audio>
+  // element sent to that device, so only the DM hears it. If the device isn't there, previews go
+  // silent rather than out of the table's speakers. Safari (and so every iPad) can't choose a device.
+  get canRoutePreview() {
+    return !!navigator.mediaDevices?.enumerateDevices && typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype;
+  }
+  async routePreview() {
+    if (!ctx) return;
+    const want = state.get('settings').previewOutput;
+    const turn = (this._routeTurn = (this._routeTurn || 0) + 1);
+    let route = 'main';
+    if (want?.id && this.canRoutePreview) {
+      if (!this.cue) {
+        const out = ctx.createMediaStreamDestination();
+        const el = new Audio();
+        el.srcObject = out.stream;
+        this.cue = { out, el };
+      }
+      try {
+        const outs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audiooutput');
+        if (outs.some((d) => d.deviceId) && !outs.some((d) => d.deviceId === want.id)) throw new Error('not connected');
+        await this.cue.el.setSinkId(want.id);
+        route = 'device';
+      } catch {
+        route = 'missing';
+      }
+    }
+    if (turn !== this._routeTurn) return;          // a newer choice is on its way
+    const b = this.buses.preview;
+    b.disconnect();
+    if (route === 'device') { b.connect(this.cue.out); this.cue.el.play().catch(() => {}); }
+    else if (route === 'main') b.connect(this.master);
+    if (route !== 'device') this.cue?.el.pause();
+    const was = this.previewRoute;
+    this.previewRoute = route;
+    if (route === 'missing') this.stopPreview(0);
+    if (route !== was) bus.emit('audio:route', route);
+  }
+  /** Send previews to this output ({id, label}), or back to the main output (null). */
+  setPreviewOutput(device) {
+    state.update('settings', (s) => { s.previewOutput = device ? { id: device.deviceId ?? device.id, label: device.label || 'the chosen output' } : null; }, { silent: true });
+    return this.routePreview();
+  }
+  missingOutput() {
+    const label = state.get('settings').previewOutput?.label || 'the chosen output';
+    bus.emit('toast', { message: `Previews are set to play on ${label}, which isn't connected. Plug it in, or choose another output in Settings, Audio.`, type: 'error' });
+  }
+  /** Two soft notes on the preview output, to hear where it plays. */
+  testPreview() {
+    this.init();
+    if (this.previewRoute === 'missing') { this.missingOutput(); return; }
+    if (this.previewRoute === 'device') this.cue.el.play().catch(() => {});
+    const t = ctx.currentTime + 0.03;
+    [[660, 0], [880, 0.2]].forEach(([f, d]) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0, t + d);
+      g.gain.linearRampToValueAtTime(0.3, t + d + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.4);
+      o.connect(g).connect(this.buses.preview);
+      o.start(t + d);
+      o.stop(t + d + 0.45);
+    });
   }
 
   // ---- hardware media keys ---------------------------------------------------------
@@ -752,10 +880,14 @@ export const engine = new Engine();
 // A sound or folder has a new id (renamed or moved on the website): follow it everywhere it plays.
 bus.on('library:moved', ({ from, to }) => {
   const map = (id) => (id === from || String(id).startsWith(`${from}/`) ? to + String(id).slice(from.length) : id);
-  const m = engine.music;
-  m.queue = m.queue.map(map);
-  m.order = (m.order || []).map(map);
-  if (m.playlistId) m.playlistId = map(m.playlistId);
+  for (const deck of [engine.music, engine.ambience]) {
+    deck.queue = deck.queue.map(map);
+    deck.order = deck.order.map(map);
+    if (deck.playlistId) deck.playlistId = map(deck.playlistId);
+    // a playlist moved to the other kind (Music to Ambience) isn't this deck's any more; its track plays on
+    const pl = deck.playlist();
+    if (pl && engine.deckFor(pl) !== deck) deck.playlistId = null;
+  }
   for (const [id, l] of [...engine.layers]) {
     if (map(id) === id) continue;
     engine.layers.delete(id);
@@ -771,6 +903,6 @@ bus.on('library:moved', ({ from, to }) => {
 
 // Keep the deck honest when a sound is deleted or edited.
 bus.on('library:removed', (id) => {
-  if (engine.music.voice?.sound.id === id) engine.stopMusic(0.3);
+  for (const deck of [engine.music, engine.ambience]) if (deck.voice?.sound.id === id) deck.stop(0.3);
   if (engine.layers.has(id)) engine.stopLayer(id, 0.3);
 });

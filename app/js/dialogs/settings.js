@@ -2,7 +2,7 @@
 // The website swaps the PC-only areas (YouTube downloads, the vault folder) for GitHub, this device's
 // offline copy, and notes kept in the browser.
 import { h, icon, clear } from '../core/dom.js';
-import { SITE, REPO } from '../core/mode.js';
+import { SITE, REPO, IOS } from '../core/mode.js';
 import { gate } from '../core/gate.js';
 import { github } from '../core/github.js';
 import * as site from '../core/site.js';
@@ -164,8 +164,8 @@ function sites(view, saved) {
   helper.append(h('p', { class: 'field-hint' }, 'The helper removes the "don\u2019t frame me" header only for frames inside this screen\u2019s tab. Everywhere else the web behaves as normal.'));
 
   view.append(
-    section('Campaign sites', 'Where the Stone Wardens and Combat Ring panes point.', urlField('Stone Wardens', 'wardens'), urlField('Combat Ring', 'combat')),
-    section('Search', 'What a web pane uses when you type words instead of an address.', engineSel),
+    section('Campaign site', 'Where the Stone Wardens tab starts. Searches, addresses and links open in that tab too.', urlField('Stone Wardens', 'wardens')),
+    section('Search', 'What the Stone Wardens tab uses when you type words instead of an address.', engineSel),
     section('Sites that refuse frames', '5e.tools, YouTube, wikis and some others forbid being shown inside another page. Without the helper they open in a window over the pane instead.', helper),
   );
 }
@@ -276,7 +276,7 @@ function githubView(view, saved) {
     h('a', { class: 'btn btn-ghost', href: site.links.howTo, target: '_blank', rel: 'noopener' }, icon('help'), 'How adding sounds works'));
   const connectBox = h('div', { class: 'st-panel' });
   view.append(
-    section('Sounds on GitHub', `The screen plays the audio files in ${REPO}/sounds. Each folder in Music is a playlist, in Ambience the ambience for the playlist of the same name, in Effects a bank of pads.`,
+    section('Sounds on GitHub', `The screen plays the audio files in ${REPO}/sounds. Each folder in Music is a playlist, in Ambience an ambience playlist that plays under the music (and starts with the playlist of the same name), in Effects a bank of pads.`,
       folders,
       h('p', { class: 'field-hint' }, `${library.list().length} sounds published${pub.built ? `, last ${when(pub.built * 1000)}` : ''}. A new upload takes about a minute to appear.`)),
     section('Connect this device', 'Once per device. It lets the screen rename and move sounds, make folders, and keep flags, pads and playlist keys the same on every device. Without it everything still plays, and changes stay on this device.', connectBox),
@@ -429,6 +429,82 @@ function device(view) {
 }
 
 // ---- Audio --------------------------------------------------------------------------------
+/** Speakers and headphones by name. Chrome and Edge only name them for a page that may use the
+ *  microphone, so with ask they request it once and let go at once; Firefox shows its own list. */
+async function listOutputs(ask) {
+  const md = navigator.mediaDevices;
+  const outputs = async () => (await md.enumerateDevices()).filter((d) => d.kind === 'audiooutput' && d.deviceId);
+  let list = await outputs();
+  if (ask && md.selectAudioOutput) {
+    const picked = await md.selectAudioOutput();
+    return { list: [...list.filter((d) => d.deviceId !== picked.deviceId), picked], picked };
+  }
+  if (ask && !list.some((d) => d.label)) {
+    const mic = await md.getUserMedia({ audio: true });
+    mic.getTracks().forEach((t) => t.stop());
+    list = await outputs();
+  }
+  return { list, picked: null };
+}
+
+function previewOutput(saved, levelSlider) {
+  const title = 'Preview output';
+  const desc = 'Previews are the headphones buttons on sounds and tracks, and the play button in the sound editor. Send them to your own headphones and only you hear them.';
+  if (!engine.canRoutePreview) {
+    const why = !window.isSecureContext
+      ? 'Browsers only let a page choose an output when it is opened securely: use the website, or this computer at localhost.'
+      : IOS
+        ? 'An iPad sends all its sound to one place, the one iPadOS picks (its speaker, headphones or AirPlay), and won’t let a page split it, so previews play through the main output with everything else.'
+        : 'This browser can’t send sound to a second output, so previews play through the main output. Chrome or Edge on a computer can.';
+    return section(title, desc, h('p', { class: 'st-helperstate' }, icon('info', 'icon-sm'), why), levelSlider);
+  }
+  const select = h('select', { class: 'select', 'aria-label': 'Preview output' });
+  const status = h('p', { class: 'st-helperstate' });
+  const hint = h('p', { class: 'field-hint' }, 'Chrome and Edge only name your speakers and headphones once the page may use the microphone, so they ask for it once. Nothing is recorded: the screen lets go of the microphone straight away.');
+  const listBtn = h('button', { class: 'btn btn-sm', type: 'button', onclick: () => fill(true) }, icon('headphones'), navigator.mediaDevices.selectAudioOutput ? 'Choose an output…' : 'List my outputs');
+  const testBtn = h('button', { class: 'btn btn-sm', type: 'button', onclick: () => engine.testPreview() }, icon('play'), 'Play a test sound');
+
+  function drawStatus() {
+    const cur = state.get('settings').previewOutput;
+    const r = engine.previewRoute;
+    status.classList.toggle('is-on', r === 'device');
+    status.replaceChildren(icon(r === 'device' ? 'check' : r === 'missing' ? 'warning' : 'info', 'icon-sm'),
+      r === 'device' ? `Previews play on ${cur.label} only.`
+        : r === 'missing' ? `${cur.label} isn’t connected, so previews are silent. Plug it in, or choose another output.`
+          : 'Previews play through the main output, so the table hears them too.');
+  }
+  async function fill(ask) {
+    let list = [];
+    let picked = null;
+    try { ({ list, picked } = await listOutputs(ask)); } catch (e) {
+      if (ask) toast(e.name === 'NotAllowedError' ? 'The browser wasn’t allowed to list your outputs. Allow it in the address bar’s site settings, then try again.' : `Couldn’t list your outputs: ${e.message}`, { type: 'error', timeout: 8000 });
+    }
+    if (picked) { await engine.setPreviewOutput(picked); saved(); }
+    const cur = state.get('settings').previewOutput;
+    const named = list.some((d) => d.label);
+    clear(select);
+    select.append(h('option', { value: '' }, 'The main output (the table hears previews)'));
+    for (const d of list) if (d.label || named) select.append(h('option', { value: d.deviceId }, d.label || 'An unnamed output'));
+    if (cur?.id && !list.some((d) => d.deviceId === cur.id)) select.append(h('option', { value: cur.id }, `${cur.label} (not found)`));
+    select.value = cur?.id || '';
+    hint.hidden = named || !!navigator.mediaDevices.selectAudioOutput;
+    if (ask && !named && !picked && list.length <= 1) toast('This device doesn’t show its outputs to web pages, so previews stay on the main output.', { timeout: 7000 });
+    drawStatus();
+  }
+  select.addEventListener('change', async () => {
+    const opt = select.selectedOptions[0];
+    await engine.setPreviewOutput(select.value ? { deviceId: select.value, label: opt.textContent.replace(/ \(not found\)$/, '') } : null);
+    saved();
+    drawStatus();
+  });
+  const off = bus.on('audio:route', () => { if (!status.isConnected) { off(); return; } drawStatus(); fill(false); });
+  fill(false);
+  return section(title, desc,
+    h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Previews play on'), select),
+    h('div', { class: 'st-actions' }, listBtn, testBtn),
+    hint, status, levelSlider);
+}
+
 function audio(view, saved) {
   const s = state.get('settings');
   const slider = (label, key, min, max, stepv, fmt, onSet) => {
@@ -441,6 +517,7 @@ function audio(view, saved) {
     return h('label', { class: 'field' }, h('span', { class: 'field-label' }, label), h('span', { class: 'st-slider' }, r, out));
   };
   view.append(
+    previewOutput(saved, slider('Preview level', 'previewLevel', 0, 1, 0.05, (v) => `${Math.round(v * 100)}%`, () => engine.applyLevels())),
     section('Fades', 'How music moves from one track or playlist to the next.',
       slider('Crossfade for new playlists', 'crossfade', 0, 10, 0.5, (v) => `${v.toFixed(1)} s`),
       slider('Fade all (Alt+0) takes', 'fadeAll', 0.5, 10, 0.5, (v) => `${v.toFixed(1)} s`)),
