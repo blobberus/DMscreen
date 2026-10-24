@@ -63,8 +63,8 @@
  "boards": {
   "banks": [
    {
-    "id": "Effects/Combat",
-    "dir": "Effects/Combat",
+    "id": "Effects/Misc",
+    "dir": "Effects/Misc",
     "pads": {},
     "seen": [],
     "name": "Combat"
@@ -91,7 +91,7 @@
     "name": "World"
    }
   ],
-  "active": "Effects/Combat"
+  "active": "Effects/Misc"
  },
  "keymap": {}
 }
