@@ -46,7 +46,12 @@ app/js/audio/        engine.js (AudioContext, buses, voices), board.js (pads), p
                      through a MediaStream to an <audio> with setSinkId; a chosen output that's gone = silent
 app/js/layout/       workspace.js (presets, grid splitters, panes/tabs, floating panel layer), rail.js (the
                      side rail: a hide/show button per pane, opened with each pane's tabs; panels when compact)
-app/js/panels/       registry + console pads playlists library editor youtube web notes
+app/js/panels/       registry + console pads playlists library editor youtube web notes merchants
+app/content/merchants.json  premade merchants (6 categories, 55 shops, ~1,670 items): names, prices,
+                     weights and Rural/Urban/Premium availability indexed from thievesguild.cc/shops (via the
+                     Internet Archive: the live site is behind Cloudflare); every synopsis and description is our
+                     own (don't copy the source's prose; the repo is public). Village/Town/Capital use the
+                     cheap/normal/expensive price column and their locale's stock. Generated JSON: edit it directly
 app/js/dialogs/      settings.js shortcuts.js files.js (website: upload links, rename/move/new folder)
                      volume.js (a sound's own volume, from its ⋯ menu)
 app/sw.js            website offline copy (media/peaks cache-first with byte ranges; the rest network-first)
@@ -60,7 +65,7 @@ tools/shrink_sounds.py  cuts long recordings to upload-sized MP3s (20 min from 3
 ```
 
 ## Contracts
-- State docs (`settings layouts playlists boards bookmarks keymap`) live in `data/state/*.json`;
+- State docs (`settings layouts playlists boards bookmarks keymap merchants`) live in `data/state/*.json`;
   `state.update(name, fn)` mutates, emits `state:<name>`, saves after 500 ms.
 - `library` (client): `list/get/update(id, patch)` (debounced PATCH), `peaks(id)`, `upload`, `clip`,
   `download`, jobs polling. Sound fields: name kind trimStart trimEnd flags[{id,t,label}] repeat (1 once,
@@ -116,7 +121,7 @@ tools/shrink_sounds.py  cuts long recordings to upload-sized MP3s (20 min from 3
   old/mixed code for hours once (all Tavern layers at once). Tests: `rangeserve.py` honours
   `CACHE=max-age=600`, and drive.mjs has an `exec` step to publish a new build mid-test. Import modules
   with the page's version: `'./js/x.js' + new URL(document.querySelector('script[type=module]').src).search`.
-- Synced docs (`playlists boards keymap bookmarks` + sound meta) live in `setup.doc` and go to GitHub
+- Synced docs (`playlists boards keymap bookmarks merchants` + sound meta) live in `setup.doc` and go to GitHub
   6 s after a change (Contents API, 3-way merge on conflict). `settings layouts` stay in localStorage.
 - Renames/moves/deletes/new folders (and `library.moveFolder` between Music and Ambience): one Git Data API commit with the remapped setup.json, then a
   pending op in localStorage until library.json shows it; emits 'library:moved' {from, to}.

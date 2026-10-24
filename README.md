@@ -15,6 +15,9 @@ built around a sound console you can run from the keyboard without looking.
   (5e.tools, D&D Beyond…), links in notes and links the campaign site opens in a new tab all load in
   this one tab.
 - **Notes**: Markdown notes in an Obsidian vault, made for writing during a session.
+- **Merchants**: shops by kind of place (Collector's, Capital, Artisan, Town, Village, Street), each
+  listing what it sells with a short synopsis and a price; double-click an item for its details. Add
+  your own categories, shops and items. Open it from any pane's **+**.
 
 The whole screen is behind one password: **Pleiades**.
 

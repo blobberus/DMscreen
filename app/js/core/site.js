@@ -3,7 +3,7 @@
 //   library.json with their length and waveform, and serves each one as media/<content id>.
 // - the folders are the screen: sounds/Music/<name> is a playlist, sounds/Ambience/<name> an ambience
 //   playlist (listed apart), sounds/Effects/<name> a bank of soundboard pads.
-// - the setup (flags, trims, pads, playlist keys, shortcuts, bookmarks) is screen/setup.json. Every
+// - the setup (flags, trims, pads, playlist keys, shortcuts, bookmarks, custom merchants) is screen/setup.json. Every
 //   change is kept in this browser at once and, when this device is connected to GitHub, committed a few
 //   seconds later. Layouts and settings belong to each device and stay in it.
 // - renames, moves, new folders and deletions are commits. GitHub needs a minute to publish them, so
@@ -23,7 +23,7 @@ export const CATEGORIES = [
 ];
 const CATEGORY_NAMES = { music: 'music', ambience: 'ambience', ambiance: 'ambience', ambient: 'ambience', effects: 'effect', effect: 'effect', sfx: 'effect', soundboard: 'effect' };
 const LOCAL_DOCS = new Set(['settings', 'layouts']);
-const SYNCED_DOCS = ['playlists', 'boards', 'keymap', 'bookmarks'];
+const SYNCED_DOCS = ['playlists', 'boards', 'keymap', 'bookmarks', 'merchants'];
 const META_FIELDS = ['trimStart', 'trimEnd', 'flags', 'repeat', 'volume', 'fadeIn', 'fadeOut', 'loopFade', 'tags'];
 const SETUP_KEY = 'dm:setup';
 const PENDING_KEY = 'dm:pending';
@@ -184,7 +184,7 @@ export function folders() { return view.folders.slice(); }
 export const published = () => ({ commit: manifest.commit, built: manifest.built });
 
 // ---- the setup ------------------------------------------------------------------------------------
-const fresh = () => ({ version: 1, sounds: {}, playlists: { list: [] }, boards: { banks: [], active: null }, keymap: {}, bookmarks: undefined });
+const fresh = () => ({ version: 1, sounds: {}, playlists: { list: [] }, boards: { banks: [], active: null }, keymap: {}, bookmarks: undefined, merchants: undefined });
 function normal(doc) {
   const d = { ...(doc && typeof doc === 'object' ? doc : {}) };
   const blank = fresh();
@@ -229,6 +229,10 @@ function merge3(base, mine, theirs) {
   mergeList((d) => d.playlists?.list, (d, list) => { d.playlists = { ...(d.playlists || {}), list }; });
   mergeList((d) => d.boards?.banks, (d, banks) => { d.boards = { ...(d.boards || {}), banks }; });
   if (!same(mine.boards?.active, base.boards?.active)) out.boards.active = mine.boards?.active ?? null;
+  // custom merchants: categories, shops and items merge one by one, so two devices can add at once
+  if (mine.merchants || base.merchants || out.merchants) {
+    for (const part of ['categories', 'shops', 'items']) mergeList((d) => d.merchants?.[part], (d, list) => { d.merchants = { ...(d.merchants || {}), [part]: list }; });
+  }
   for (const k of ['keymap', 'bookmarks']) if (!same(mine[k], base[k])) out[k] = clone(mine[k]);
   return out;
 }

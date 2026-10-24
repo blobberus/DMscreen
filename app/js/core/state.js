@@ -26,6 +26,8 @@ export const DEFAULTS = {
   layouts: null,               // filled by the workspace
   playlists: { list: [] },
   boards: { banks: [{ id: 'bank_main', name: 'Effects', pads: {} }], active: 'bank_main' },
+  // your own merchants, added to the premade ones (app/content/merchants.json): kept in the repo on the website
+  merchants: { categories: [], shops: [], items: [] },
   bookmarks: {
     list: [
       { name: 'Google', url: 'https://www.google.com/webhp?igu=1' },
@@ -120,7 +122,7 @@ window.addEventListener('pagehide', () => state.flush());
 
 // The website's setup changed under us (a rename, or a save from another device): take the new copy.
 bus.on('site:docs', (all) => {
-  for (const name of ['playlists', 'boards', 'keymap', 'bookmarks']) {
+  for (const name of ['playlists', 'boards', 'keymap', 'bookmarks', 'merchants']) {
     clearTimeout(timers[name]);
     timers[name] = null;
     const next = merge(DEFAULTS[name], all[name]);

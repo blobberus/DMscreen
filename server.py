@@ -57,7 +57,7 @@ MIME = {
     'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg', 'oga': 'audio/ogg', 'opus': 'audio/ogg',
     'm4a': 'audio/mp4', 'mp4': 'audio/mp4', 'aac': 'audio/aac', 'flac': 'audio/flac', 'webm': 'audio/webm',
 }
-STATE_DOCS = {'settings', 'layouts', 'playlists', 'boards', 'bookmarks', 'keymap'}
+STATE_DOCS = {'settings', 'layouts', 'playlists', 'boards', 'bookmarks', 'keymap', 'merchants'}
 UA = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/130.0 Safari/537.36')
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
