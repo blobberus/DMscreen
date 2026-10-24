@@ -6,8 +6,45 @@
    {
     "id": "Music/01 Tavern",
     "dir": "Music/01 Tavern",
-    "ambience": [],
-    "seenAmbience": [],
+    "ambience": [
+     {
+      "id": "Ambience/Tavern/Crowded Tavern (MUSIC).mp3",
+      "volume": 0.8
+     },
+     {
+      "id": "Ambience/Tavern/Crowded Tavern (NO MUSIC).mp3",
+      "volume": 0.8
+     },
+     {
+      "id": "Ambience/Tavern/Generic Tavern (MUSIC).mp3",
+      "volume": 0.8
+     },
+     {
+      "id": "Ambience/Tavern/Inn Room.mp3",
+      "volume": 0.8
+     },
+     {
+      "id": "Ambience/Tavern/Quiet Tavern.mp3",
+      "volume": 0.8
+     },
+     {
+      "id": "Ambience/Tavern/Tavern (ROOM).mp3",
+      "volume": 0.8
+     },
+     {
+      "id": "Ambience/Tavern/Whimsy Tavern (MUSIC).mp3",
+      "volume": 0.8
+     }
+    ],
+    "seenAmbience": [
+     "Ambience/Tavern/Crowded Tavern (MUSIC).mp3",
+     "Ambience/Tavern/Crowded Tavern (NO MUSIC).mp3",
+     "Ambience/Tavern/Generic Tavern (MUSIC).mp3",
+     "Ambience/Tavern/Inn Room.mp3",
+     "Ambience/Tavern/Quiet Tavern.mp3",
+     "Ambience/Tavern/Tavern (ROOM).mp3",
+     "Ambience/Tavern/Whimsy Tavern (MUSIC).mp3"
+    ],
     "shuffle": false,
     "repeat": "all",
     "crossfade": 3,
@@ -57,6 +94,17 @@
     "crossfade": 3,
     "name": "Custom",
     "key": 5
+   },
+   {
+    "id": "Music/06 Suspense",
+    "dir": "Music/06 Suspense",
+    "ambience": [],
+    "seenAmbience": [],
+    "shuffle": false,
+    "repeat": "all",
+    "crossfade": 3,
+    "name": "Suspense",
+    "key": 6
    }
   ]
  },
