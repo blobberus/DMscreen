@@ -81,7 +81,7 @@
     "id": "Ambience/Tavern",
     "dir": "Ambience/Tavern",
     "shuffle": false,
-    "repeat": "one",
+    "repeat": "all",
     "crossfade": 3,
     "name": "Tavern",
     "kind": "ambience",
