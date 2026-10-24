@@ -759,8 +759,8 @@ class Engine {
     this.changed();
   }
 
-  /** Everything audible, for the Console: the deck's track, the sounds on top, and pads that last
-   *  (a quick hit is over before it could be read). [{voice, role: 'deck' | 'top' | 'pad', id, where}] */
+  /** Everything audible, for the Console: the deck's track, the sounds on top, and the effects (pads and
+   *  effects played from the library). [{voice, role: 'deck' | 'top' | 'pad', id, where, lowpass}] */
   playingNow() {
     const out = [];
     const live = (v) => v && v.state !== 'stopped' && v.state !== 'stopping';
@@ -769,7 +769,7 @@ class Engine {
     for (const [id, l] of this.layers) if (live(l.voice)) out.push({ voice: l.voice, role: 'top', id, where: 'on top', lowpass: l.lowpass });
     for (const [key, set] of this.pads) {
       for (const v of set) {
-        if (!live(v) || (v.repeat !== 0 && v.length < 4)) continue;
+        if (!live(v)) continue;
         out.push({ voice: v, role: 'pad', id: v.sound.id, where: key.startsWith('lib:') ? 'effect' : `pad ${key.split(':').pop()}`, lowpass: this.lowpass.pads });
       }
     }
@@ -957,6 +957,16 @@ bus.on('library:moved', ({ from, to }) => {
     if (s) v.sound = s;
   }
   engine.changed();
+});
+
+// A sound's settings changed (its volume, say): what is playing hears it at once. The library hands out
+// fresh copies of every sound when it reloads (a sound was added, GitHub was checked), so playing voices
+// are pointed at the current copy first; before, a volume change missed sounds started before a reload.
+bus.on('library:sound', (s) => {
+  for (const v of engine.voices) if (v.sound.id === s.id) { v.sound = s; v.setVolume(v.volume); }
+});
+bus.on('library', () => {
+  for (const v of engine.voices) { const s = library.get(v.sound.id); if (s) v.sound = s; }
 });
 
 // Keep the deck honest when a sound is deleted or edited.

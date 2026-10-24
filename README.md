@@ -3,8 +3,8 @@
 A Dungeon Master's screen for the table: up to four panes you arrange however the session needs,
 built around a sound console you can run from the keyboard without looking.
 
-- **Sound console**: everything that is playing (each with a stop), the track's flags, the transport,
-  your playlists and a mixer.
+- **Sound console**: everything that is playing, sound effects included (each with a scrub bar and a
+  stop), the track's flags, the transport, your playlists, ambience and pads to fire, and a mixer.
 - **Soundboard**: effect pads laid out like your keyboard. Alt+Q fires the pad on Q.
 - **Playlists**: music and ambience playlists, listed apart, on number keys (Alt+1 to 9). Starting a
   track ends the one playing; a track's on-top button plays it over whatever is playing instead.
@@ -140,7 +140,7 @@ each row; the track and sounds on top are in by default, pads only with **Pads t
 the party ducks behind a door or goes underwater; double-click it to open it again.
 
 **A sound's volume:** its **⋯** menu (or right-click in the Sound library) has **Volume…**, the level it
-plays at everywhere. The Sound library's folders fold away: click a folder's heading, or **Collapse all**.
+plays at everywhere, from silent up to 300%; it changes what is already playing too. The Sound library's folders fold away: click a folder's heading, or **Collapse all**.
 
 ### Previews in your headphones
 

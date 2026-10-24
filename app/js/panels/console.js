@@ -11,6 +11,7 @@ import { fader } from '../core/fader.js';
 import { fmtTime, fmtDuration, clamp } from '../core/util.js';
 import { engine } from '../audio/engine.js';
 import { playlists, REPEAT } from '../audio/playlists.js';
+import { board } from '../audio/board.js';
 import { drawBars, themeColors, timeToX } from '../audio/wave.js';
 
 export default function createConsole({ el }) {
@@ -70,13 +71,15 @@ export default function createConsole({ el }) {
   syncLowpass();
   const plRow = h('div', { class: 'cn-playlists' });
   const ambRow = h('div', { class: 'cn-playlists' });
+  const fxRow = h('div', { class: 'cn-playlists' });
   const now = h('section', { class: 'cn-now', 'aria-label': 'Now playing' },
     h('div', { class: 'cn-head' }, h('div', { class: 'cn-titles' }, context, track), h('div', { class: 'cn-clock' }, pos, len)),
     strip, transport,
     h('div', { class: 'cn-plwrap cn-playwrap' }, playingHead, playingList),
     flagList,
     h('div', { class: 'cn-plwrap' }, h('h3', { class: 'cn-h' }, 'Playlists'), plRow),
-    h('div', { class: 'cn-plwrap' }, h('h3', { class: 'cn-h' }, 'Ambience'), ambRow));
+    h('div', { class: 'cn-plwrap' }, h('h3', { class: 'cn-h' }, 'Ambience'), ambRow),
+    h('div', { class: 'cn-plwrap' }, h('h3', { class: 'cn-h' }, 'Effects'), fxRow));
 
   // ---- mixer ------------------------------------------------------------------
   const strips = h('div', { class: 'cn-strips' });
@@ -163,6 +166,7 @@ export default function createConsole({ el }) {
     repeatBtn.setAttribute('aria-pressed', String(engine.music.repeat !== 'off'));
     repeatBtn.title = REPEAT[engine.music.repeat] || 'Repeat';
     renderPlaylists();
+    renderEffects();
     renderPlaying();
     strip.hidden = !s;
     if (!s) {
@@ -316,25 +320,35 @@ export default function createConsole({ el }) {
       return;
     }
     const sorted = list.slice().sort((a, b) => (a.key || 99) - (b.key || 99));
-    // Idle: the playlists are the next thing to fire, so they get a row each with what's in them.
-    const idle = !engine.music.voice;
-    plRow.classList.toggle('is-list', idle);
-    if (idle) {
-      for (const pl of sorted) {
-        plRow.append(h('button', { class: 'cn-plrow', type: 'button', title: `Start ${pl.name}${pl.key ? ` (Alt+${pl.key})` : ''}`, onclick: () => playlists.play(pl.id) },
-          pl.key ? h('kbd', { class: 'kbd' }, String(pl.key)) : h('span', { class: 'kbd is-blank' }, '–'),
-          h('span', { class: 'cn-plname truncate' }, pl.name),
-          h('span', { class: 'meta truncate' }, `${pl.tracks.length} ${pl.tracks.length === 1 ? 'track' : 'tracks'} · ${fmtDuration(playlists.duration(pl))}`),
-          icon('play', 'icon-sm')));
-      }
-      return;
-    }
     for (const pl of sorted) {
       const playing = engine.music.playlistId === pl.id && engine.music.voice;
       plRow.append(h('button', {
         class: `cn-pl ${playing ? 'is-selected' : ''}`, type: 'button', title: `Start ${pl.name}${pl.key ? ` (Alt+${pl.key})` : ''}`,
         onclick: () => playlists.play(pl.id),
       }, pl.key ? h('kbd', { class: 'kbd' }, String(pl.key)) : null, h('span', { class: 'truncate' }, pl.name)));
+    }
+  }
+
+  // The pads of every bank that has any, in keyboard order: tap one to fire it, as on the soundboard.
+  const KEY_ORDER = '1234567890QWERTYUIOPASDFGHJKLZXCVBNM';
+  let fxKey = '';
+  function renderEffects() {
+    const banks = board.banks().map((b) => ({ b, pads: Object.entries(b.pads || {}).filter(([, p]) => p && library.has(p.sound)) })).filter((x) => x.pads.length);
+    const key = banks.map(({ b, pads }) => `${b.id}:${pads.map(([k, p]) => `${k}=${p.label || p.sound}${board.live(k, b).playing ? '*' : ''}`).join(',')}`).join('|');
+    if (key === fxKey) return;
+    fxKey = key;
+    clear(fxRow);
+    if (!banks.length) { fxRow.append(h('p', { class: 'meta' }, 'No pads yet. Each sound in sounds/Effects becomes a pad.')); return; }
+    for (const { b, pads } of banks) {
+      if (banks.length > 1) fxRow.append(h('span', { class: 'meta cn-fxbank' }, b.name));
+      pads.sort(([a], [c]) => KEY_ORDER.indexOf(a) - KEY_ORDER.indexOf(c));
+      for (const [k, p] of pads) {
+        const label = p.label || library.get(p.sound)?.name || k;
+        fxRow.append(h('button', {
+          class: `cn-pl ${board.live(k, b).playing ? 'is-selected' : ''}`, type: 'button', title: `Fire ${label}${b.id === board.active().id ? ` (Alt+${k})` : ` (in ${b.name})`}`,
+          onclick: () => board.fire(k, b),
+        }, h('kbd', { class: 'kbd' }, k), h('span', { class: 'truncate' }, label)));
+      }
     }
   }
 
@@ -403,6 +417,8 @@ export default function createConsole({ el }) {
     bus.on('audio:lowpass', syncLowpass),
     bus.on('library:sound', (s) => { if (engine.music.voice?.sound.id === s.id) { flagsKey = ''; render(); } }),
     bus.on('state:playlists', renderPlaylists),
+    bus.on('state:boards', renderEffects),
+    bus.on('library', () => { fxKey = ''; renderEffects(); }),
     bus.on('state:settings', () => { colors = themeColors(); cache.key = null; drawWave(); }),
   ];
 

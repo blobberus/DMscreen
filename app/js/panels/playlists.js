@@ -1,7 +1,8 @@
 // Playlists: finding and starting tracks. Music and ambience playlists are listed apart; each playlist's
 // tracks have a play button (start the playlist from there, ending what was playing) and an on-top
 // button (play just that sound over whatever is playing). What is playing is shown in the Console.
-// Drag sounds in from the library; drag tracks to reorder.
+// Drag sounds in from the library; drag tracks to reorder. In a narrow pane it shows the list or one
+// playlist, with a way back, rather than squeezing both in.
 // On the website each playlist is a folder in sounds/Music or sounds/Ambience: its tracks are the files
 // in it, in file-name order, and adding sounds opens GitHub's upload page for that folder.
 import { h, icon, clear } from '../core/dom.js';
@@ -19,6 +20,7 @@ const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export default function createPlaylists({ el, getState, setState }) {
   let selected = getState().selected || null;
+  let narrowView = 'list';
   const lists = {
     music: h('div', { class: 'pl-list', role: 'listbox', 'aria-label': 'Music playlists' }),
     ambience: h('div', { class: 'pl-list', role: 'listbox', 'aria-label': 'Ambience playlists' }),
@@ -42,8 +44,16 @@ export default function createPlaylists({ el, getState, setState }) {
   function select(id) {
     selected = id;
     setState({ selected: id });
+    narrowView = id ? 'edit' : 'list';
     renderList();
     renderEditor();
+    layout();
+  }
+
+  function layout() {
+    const narrow = root.clientWidth > 0 && root.clientWidth < 600;
+    root.classList.toggle('is-narrow', narrow);
+    root.classList.toggle('show-edit', narrow && narrowView === 'edit' && !!selected);
   }
 
   function renderList() {
@@ -74,6 +84,7 @@ export default function createPlaylists({ el, getState, setState }) {
 
   function renderEditor() {
     clear(editor);
+    editor.append(h('button', { class: 'btn btn-sm pl-back', type: 'button', onclick: () => { narrowView = 'list'; layout(); } }, icon('back'), 'Playlists'));
     const pl = selected && playlists.get(selected);
     if (!pl) {
       editor.append(h('div', { class: 'empty' },
@@ -235,6 +246,7 @@ export default function createPlaylists({ el, getState, setState }) {
 
   renderList();
   renderEditor();
+  layout();
   let liveKey = '';
   const offs = [
     bus.on('state:playlists', () => { renderList(); if (!editor.contains(document.activeElement) || document.activeElement.tagName === 'BUTTON') renderEditor(); }),
@@ -246,5 +258,9 @@ export default function createPlaylists({ el, getState, setState }) {
       if (key !== liveKey) { liveKey = key; renderList(); if (!editor.contains(document.activeElement)) renderEditor(); }
     }),
   ];
-  return { destroy() { offs.forEach((off) => off()); } };
+  return {
+    show: layout,
+    resize: layout,
+    destroy() { offs.forEach((off) => off()); },
+  };
 }

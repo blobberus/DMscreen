@@ -64,7 +64,10 @@ tools/shrink_sounds.py  cuts long recordings to upload-sized MP3s (20 min from 3
   starting one ends the one before (the user's rule: a playlist never plays its sounds at once). A
   sound plays on its kind's bus; a loop-forever sound plays once per pass on the deck. Sounds "on top"
   are layers, started only on purpose by a track's on-top button (startLayer/stopLayer/toggleLayer).
-  `playingNow()` lists deck + on top + long pads for the Console's Playing list (each row scrubs with
+  The library hands out fresh sound objects on every reload, so the engine re-points playing voices on
+  'library' and re-applies gain on 'library:sound' (a volume change missed playing sounds before). A
+  sound's volume (and a pad's) goes up to 3.0 (300%).
+  `playingNow()` lists deck + on top + every pad voice for the Console's Playing list (each row scrubs with
   `seekItem`). Every voice has its own low-pass BiquadFilter; `setLowpass(0..1)` sweeps the ones switched
   in (`lowpass.deck`, each layer's `lowpass`, `lowpass.pads`; `setFiltered`), previews never. Transport
   (playPlaylist/playSingle/next/prev/togglePlay/jumpFlag/nextFlag/prevFlag), pads (firePad,
