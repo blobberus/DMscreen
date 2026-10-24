@@ -11,7 +11,7 @@ import { library } from '../core/library.js';
 import { pickSound, confirmDialog, showMenu, toast } from '../core/ui.js';
 import { fmtTime, fmtDuration } from '../core/util.js';
 import { engine } from '../audio/engine.js';
-import { previewButton, onTopButton, syncPreviewButtons } from '../audio/cue.js';
+import { previewButton, onTopButton, queueButton, syncPreviewButtons } from '../audio/cue.js';
 import { playlists, REPEAT } from '../audio/playlists.js';
 import { SITE } from '../core/mode.js';
 import { newFolder, folderItems, soundItems, addButton, explainFailure } from '../dialogs/files.js';
@@ -179,6 +179,7 @@ export default function createPlaylists({ el, getState, setState }) {
       h('span', { class: 'pl-dur num meta' }, s ? fmtTime(b - a) : '–'),
       s ? previewButton(s) : h('span'),
       h('button', { class: 'btn-icon btn-sm', type: 'button', title: 'Play from here, ending what is playing', 'aria-label': `Play from ${s?.name}`, disabled: !s, onclick: () => playlists.play(pl.id, { index: i }) }, icon('play')),
+      s ? queueButton(s) : h('span'),
       s ? onTopButton(s) : h('span'),
       SITE ? h('button', { class: 'btn-icon btn-sm', type: 'button', title: 'Rename, move or delete', 'aria-label': `More for ${s?.name}`, disabled: !s, onclick: (e) => showMenu(e.currentTarget, soundItems(s), { align: 'end' }) }, icon('more'))
         : h('button', { class: 'btn-icon btn-sm', type: 'button', title: 'Remove from the playlist', 'aria-label': `Remove ${s?.name}`, onclick: () => {

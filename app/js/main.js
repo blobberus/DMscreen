@@ -74,7 +74,11 @@ function buildTop() {
     bar.hidden = false;
     const pl = engine.playlist();
     const top = engine.layers.size;
-    title.replaceChildren(pl ? h('span', { class: 'deck-pl' }, `${pl.name} · `) : '', s.name, top ? h('span', { class: 'deck-pl' }, `  + ${top} on top`) : '');
+    // the one queued sound shows here, with a way to take it off
+    const q = engine.music.queued && library.get(engine.music.queued);
+    const queued = q ? h('span', { class: 'deck-next' }, h('span', { class: 'deck-pl' }, '  · next: '), q.name,
+      h('button', { class: 'deck-unq', type: 'button', title: `Take ${q.name} off the queue`, 'aria-label': `Take ${q.name} off the queue`, onclick: () => engine.clearNext() }, icon('close', 'icon-sm'))) : '';
+    title.replaceChildren(pl ? h('span', { class: 'deck-pl' }, `${pl.name} · `) : '', s.name, top ? h('span', { class: 'deck-pl' }, `  + ${top} on top`) : '', queued);
     const key = `${s.id}|${v.from}|${v.to}|${(s.flags || []).map((f) => f.t).join(',')}`;
     if (key !== flagsKey) {
       flagsKey = key;

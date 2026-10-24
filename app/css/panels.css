@@ -309,7 +309,8 @@ button.pd-key:active, .pd-key.is-hit { transform: translateY(1px); }
 .lb-row:focus-visible { box-shadow: inset 0 0 0 1px var(--focus); }
 .lb-row.is-selected { background: var(--raised-3); }
 .lb-row[draggable="true"]:active { cursor: grabbing; }
-.lb-play.is-on, .cue-btn.is-on, .ontop-btn.is-on { color: var(--accent); }
+.lb-play.is-on, .cue-btn.is-on, .ontop-btn.is-on, .queue-btn.is-on { color: var(--accent); }
+.cn-unq { vertical-align: middle; margin-left: 2px; }
 .lb-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .lb-dur { flex: none; color: var(--muted); font-size: 14px; }
 .lb-detail { min-width: 0; min-height: 0; overflow: auto; position: relative; }

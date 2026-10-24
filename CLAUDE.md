@@ -6,6 +6,11 @@ and the **PC version** (`server.py`, local library, YouTube downloads, Obsidian 
 `blobberus/Stone-Wardens` (campaign site, framed in a pane; this app borrows its design tokens, type and
 markdown renderer) and `blobberus/Combat-Ring` (no longer shown: the user had it removed).
 
+**Adding, uploading or compressing sounds:** follow `ADDING_SOUNDS.md` step by step (folders, 25 MB /
+900 MB limits, `tools/shrink_sounds.py --in-place`, commit `sounds/` only, push, watch the Pages run).
+The user shouldn't have to explain it. Keep the local clone current with `git pull --ff-only`
+(`sync.bat`; `start.bat` also pulls quietly) so renames made on the website reach it.
+
 ## Hard rules
 - **Windows + Controlled Folder Access:** Git Bash cannot create or write files inside `Documents`.
   Use the Write/Edit tools or PowerShell for repo writes; scratch work goes to the session scratchpad.

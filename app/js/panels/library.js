@@ -9,7 +9,7 @@ import { library, KIND_LABEL } from '../core/library.js';
 import { openDialog, showMenu, toast } from '../core/ui.js';
 import { fmtTime, parseTime, hostOf } from '../core/util.js';
 import { engine } from '../audio/engine.js';
-import { previewButton, onTopButton, syncPreviewButtons } from '../audio/cue.js';
+import { previewButton, onTopButton, queueButton, syncPreviewButtons } from '../audio/cue.js';
 import { volumeDialog } from '../dialogs/volume.js';
 import { board, ROWS } from '../audio/board.js';
 import { playlists } from '../audio/playlists.js';
@@ -253,6 +253,7 @@ export default function createLibrary({ el, getState, setState, workspace }) {
         h('span', { class: 'truncate' }, s.name),
         h('span', { class: 'meta truncate' }, [KIND_LABEL[s.kind], s.flags?.length ? `${s.flags.length} ${s.flags.length === 1 ? 'flag' : 'flags'}` : null, s.repeat === 0 ? 'loops' : s.repeat > 1 ? `plays ${s.repeat}×` : null, s.status === 'analyzing' ? 'reading…' : null].filter(Boolean).join(' · '))),
       h('span', { class: 'lb-dur num' }, fmtTime(s.duration)),
+      s.kind === 'effect' ? null : queueButton(s),
       s.kind === 'effect' ? null : onTopButton(s),
       previewButton(s));
       return row;
@@ -269,6 +270,7 @@ export default function createLibrary({ el, getState, setState, workspace }) {
     } }));
     showMenu(at, [
       { label: PLAY_HINT[s.kind], icon: 'play', onClick: () => playForTable(s) },
+      s.kind === 'effect' ? null : { label: engine.music.queued === s.id ? 'Take it off the queue' : 'Play next', icon: 'next', onClick: () => (engine.music.queued === s.id ? engine.clearNext() : engine.queueNext(s)) },
       s.kind === 'effect' ? null : { label: engine.layerOn(s.id) ? 'Stop it on top' : 'Play on top of what is playing', icon: engine.layerOn(s.id) ? 'stop' : 'layers', onClick: () => engine.toggleLayer(s.id) },
       { label: engine.previewing(s.id) ? 'Stop the preview' : 'Preview', icon: 'headphones', hint: engine.previewRoute === 'device' ? 'only you' : '', onClick: () => engine.togglePreview(s) },
       { label: 'Open in the editor', icon: 'edit', onClick: () => select(s.id) },

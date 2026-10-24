@@ -9,6 +9,9 @@ data/
 # Session notes stay private unless you choose to commit them
 vault/
 
+# Personal documents kept beside the repo (the repo is public)
+Communicate/
+
 # Tool output
 .taste-skill/
 *.tmp

@@ -27,5 +27,11 @@ if not exist ".venv\.deps-ok" (
   echo ok> ".venv\.deps-ok"
 )
 
+rem Take in what changed on GitHub first (sounds renamed on the website, new versions). Quiet, and never
+rem stops the screen from starting: offline, or with clashing changes of its own, it starts as it is.
+where git >nul 2>nul && (
+  git fetch --quiet origin 2>nul && git merge --ff-only --quiet origin/main >nul 2>nul && echo Up to date with GitHub.
+)
+
 ".venv\Scripts\python.exe" server.py --open %*
 pause

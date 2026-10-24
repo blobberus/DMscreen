@@ -1,6 +1,7 @@
-// The small per-sound buttons the sound library and the playlists share: preview (headphones), and on
-// top (play just this sound over whatever is playing). Also the words for where a preview plays: on the
-// output chosen in Settings, Audio, or through the main output with everything else.
+// The small per-sound buttons the sound library and the playlists share: preview (headphones), on top
+// (play just this sound over whatever is playing) and play next (the one queued sound). Also the words
+// for where a preview plays: on the output chosen in Settings, Audio, or through the main output with
+// everything else.
 import { h, icon, setIcon } from '../core/dom.js';
 import { state } from '../core/state.js';
 import { engine } from './engine.js';
@@ -40,8 +41,23 @@ export function onTopButton(sound) {
   return btn;
 }
 
-/** Bring the preview and on-top buttons under root up to date (on 'audio' and 'audio:route'). */
+function dressQueue(btn, name, on) {
+  btn.classList.toggle('is-on', on);
+  btn.setAttribute('aria-pressed', String(on));
+  btn.title = on ? `${name} plays next. Press to take it off.` : 'Play next, after the current track';
+  btn.setAttribute('aria-label', on ? `Take ${name} off the queue` : `Play ${name} next`);
+}
+
+/** Queue the sound to play when the current track ends (one at a time), or take it off the queue. */
+export function queueButton(sound) {
+  const btn = h('button', { class: 'btn-icon btn-sm queue-btn', type: 'button', 'data-queue': sound.id, 'data-name': sound.name, onclick: () => (engine.music.queued === sound.id ? engine.clearNext() : engine.queueNext(sound)) }, icon('next'));
+  dressQueue(btn, sound.name, engine.music.queued === sound.id);
+  return btn;
+}
+
+/** Bring the preview, on-top and play-next buttons under root up to date (on 'audio' and 'audio:route'). */
 export function syncPreviewButtons(root) {
   for (const btn of root.querySelectorAll('.cue-btn')) dress(btn, engine.previewing(btn.dataset.cue));
   for (const btn of root.querySelectorAll('.ontop-btn')) dressOnTop(btn, { name: btn.dataset.name || 'it' }, engine.layerOn(btn.dataset.ontop));
+  for (const btn of root.querySelectorAll('.queue-btn')) dressQueue(btn, btn.dataset.name || 'it', engine.music.queued === btn.dataset.queue);
 }

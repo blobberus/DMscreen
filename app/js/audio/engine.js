@@ -364,6 +364,7 @@ class Deck {
     this.shuffle = false;
     this.crossfade = 3;
     this.lastSound = null;
+    this.queued = null;           // one sound queued to play when this track ends (its id), shown at the top
   }
   get track() { return this.voice?.sound || null; }
   get playing() { return this.voice?.state === 'playing' || this.voice?.state === 'loading'; }
@@ -396,10 +397,15 @@ class Deck {
     this.playAt(0, { fade });
   }
 
-  playAt(i, { fade = this.crossfade, at = 0 } = {}) {
-    const id = this.queue[i];
-    const s = id && library.get(id);
+  playAt(i, opts = {}) {
+    const s = this.queue[i] && library.get(this.queue[i]);
     if (!s) return;
+    this.index = i;
+    this.startTrack(s, opts);
+  }
+
+  /** Start a sound on the deck, crossfading from what plays; the place in the playlist stays put. */
+  startTrack(s, { fade = this.crossfade, at = 0 } = {}) {
     const old = this.voice;
     const v = this.engine.voice(s, busOf(s), {
       ...(s.repeat === 0 ? { repeat: 1, loopFade: 0 } : {}),
@@ -409,7 +415,6 @@ class Deck {
       onApproach: { lead: Math.max(0.1, this.crossfade), run: (voice) => this.approaching(voice) },
     });
     this.voice = v;
-    this.index = i;
     this.lastSound = s.id;
     this.engine.startVoice(v, at);
     if (old) old.stop(Math.max(fade, 0.05));
@@ -426,8 +431,27 @@ class Deck {
     return j;
   }
 
+  // The queue holds one sound: it plays when this track ends, then the playlist carries on from where it was.
+  queueNext(sound) {
+    if (!this.voice) { this.playSingle(sound); return; }        // nothing playing: it starts now
+    this.queued = sound.id;                                       // a second sound takes the first one's place
+    this.engine.changed();
+  }
+  clearNext() {
+    if (!this.queued) return;
+    this.queued = null;
+    this.engine.changed();
+  }
+  takeNext() {
+    const s = this.queued && library.get(this.queued);
+    this.queued = null;
+    return s || null;
+  }
+
   approaching(voice) {
     if (voice !== this.voice || this.crossfade <= 0.15) return;
+    const q = this.takeNext();
+    if (q) { voice.advanced = true; this.startTrack(q, { fade: this.crossfade }); return; }
     const j = this.nextIndex(1);
     if (j < 0) return;
     voice.advanced = true;
@@ -439,6 +463,8 @@ class Deck {
   ended(voice) {
     if (voice !== this.voice) return;
     if (voice.advanced) return;
+    const q = this.takeNext();
+    if (q) { this.startTrack(q, { fade: 0.05 }); return; }
     const j = this.nextIndex(1);
     if (j < 0) { this.voice = null; this.engine.changed(); return; }
     if (j === 0 && this.shuffle && this.repeat === 'all') this.queue = shuffled(this.order);
@@ -454,6 +480,8 @@ class Deck {
     return false;
   }
   next() {
+    const q = this.takeNext();
+    if (q) { this.startTrack(q, { fade: Math.min(1.2, this.crossfade || 0.05) }); return; }
     if (!this.queue.length) return;
     let j = this.index + 1;
     if (j >= this.queue.length) { j = 0; if (this.shuffle) this.queue = shuffled(this.order); }
@@ -469,6 +497,7 @@ class Deck {
   stop(fade = 1) {
     this.voice?.stop(fade);
     this.voice = null;
+    this.queued = null;
     this.engine.changed();
   }
   setRepeat(mode) {
@@ -489,6 +518,7 @@ class Deck {
     if (pl) state.update('playlists', () => Object.assign(pl, patch));
   }
   upNext() {
+    if (this.queued) return library.get(this.queued);
     const j = this.nextIndex(1);
     if (j < 0 || (j === this.index && this.repeat !== 'one')) return null;
     return library.get(this.queue[j]);
@@ -645,6 +675,9 @@ class Engine {
     if (pl) this.music.play(pl, opts);
   }
   playSingle(sound, opts) { this.music.playSingle(sound, opts); }
+  /** Queue one sound to play after the current track (shown at the top), or take it off. */
+  queueNext(sound) { this.init(); this.music.queueNext(sound); }
+  clearNext() { this.music.clearNext(); }
 
   togglePlay() {
     this.init();
@@ -846,6 +879,7 @@ class Engine {
   // ---- everything ---------------------------------------------------------------
   fadeAll(seconds = state.get('settings').fadeAll) {
     if (this.music.voice) { this.music.voice.stop(seconds); this.music.voice = null; }
+    this.music.queued = null;
     for (const id of [...this.layers.keys()]) this.stopLayer(id, seconds);
     this.stopEffects(Math.min(seconds, 0.8));
     if (this.previewRoute !== 'device') this.stopPreview();     // a preview in your headphones isn't the table's
@@ -973,6 +1007,7 @@ bus.on('library:moved', ({ from, to }) => {
   const deck = engine.music;
   deck.queue = deck.queue.map(map);
   deck.order = deck.order.map(map);
+  if (deck.queued) deck.queued = map(deck.queued);
   if (deck.playlistId) deck.playlistId = map(deck.playlistId);
   for (const [id, l] of [...engine.layers]) {
     if (map(id) === id) continue;
@@ -1000,5 +1035,6 @@ bus.on('library', () => {
 // Keep the deck honest when a sound is deleted or edited.
 bus.on('library:removed', (id) => {
   if (engine.music.voice?.sound.id === id) engine.music.stop(0.3);
+  if (engine.music.queued === id) engine.music.clearNext();
   if (engine.layers.has(id)) engine.stopLayer(id, 0.3);
 });

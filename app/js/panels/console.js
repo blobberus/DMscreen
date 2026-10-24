@@ -208,7 +208,9 @@ export default function createConsole({ el }) {
     track.textContent = s.name;
     context.textContent = pl ? `${pl.name} · track ${m.index + 1} of ${m.queue.length}` : 'Playing on its own';
     const nxt = engine.upNext();
-    upNext.replaceChildren(nxt ? h('span', null, h('span', { class: 'faint' }, 'Up next  '), nxt.name) : h('span', { class: 'faint' }, m.repeat === 'off' && m.index === m.queue.length - 1 ? 'Last track' : ''));
+    upNext.replaceChildren(nxt ? h('span', null, h('span', { class: 'faint' }, m.queued ? 'Queued next  ' : 'Up next  '), nxt.name,
+      m.queued ? h('button', { class: 'btn-icon btn-sm cn-unq', type: 'button', title: `Take ${nxt.name} off the queue`, 'aria-label': `Take ${nxt.name} off the queue`, onclick: () => engine.clearNext() }, icon('close', 'icon-sm')) : null)
+      : h('span', { class: 'faint' }, m.repeat === 'off' && m.index === m.queue.length - 1 ? 'Last track' : ''));
     len.textContent = ` / ${fmtTime(v.length)}`;
     loadPeaks(s);
     const key = `${s.id}|${v.from}|${v.to}|${JSON.stringify(s.flags || [])}`;

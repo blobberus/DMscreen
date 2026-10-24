@@ -85,6 +85,9 @@ open while you play; close it to stop the screen.
 Needs Python 3.10 or newer (already on this computer). Everything else installs itself into `.venv`.
 
 - `start.bat --lan` also lets other devices on your network open it (a tablet at the table).
+- **Adding sounds that are too big** (or from another device with Claude): see
+  [ADDING_SOUNDS.md](ADDING_SOUNDS.md). `sync.bat` brings this copy up to date with GitHub, renames made
+  on the website included; `start.bat` does it quietly each time.
 - `update.bat` updates the downloader. YouTube changes often, so run it when downloads start failing
   (or use Settings, YouTube, Update the downloader).
 
@@ -131,7 +134,9 @@ plays through once and the next crossfades in; choose **Repeat track** to loop j
 Playing a track or a playlist ends whatever was playing, so a playlist never plays all its sounds at
 once. To layer sounds (music with rain under it, a crowd over a fire), press a track's **on-top** button
 (the stacked squares) in the Playlists pane or the Sound library: just that sound plays over the rest,
-and pressing it again stops it. Pads always play over everything. The Console's **Playing** list shows
+and pressing it again stops it. Pads always play over everything. A track's **play next** button (the
+skip arrow) queues it to play when the current track ends, then the playlist carries on; one sound waits
+at a time, shown in the top bar with an × to take it off. The Console's **Playing** list shows
 every sound that is playing, each with its own scrub bar (click or drag it to move just that sound),
 pause, stop and low-pass switch. Sounds on top and pads also have a loop button: on, the sound goes
 round until you stop it; off, it finishes the pass it is in. (The track loops with Repeat track.)
