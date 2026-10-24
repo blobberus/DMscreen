@@ -206,7 +206,7 @@
     "name": "World"
    }
   ],
-  "active": "Effects/Misc"
+  "active": "Effects/fx"
  },
  "keymap": {}
 }
