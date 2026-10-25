@@ -78,7 +78,10 @@ tools/shrink_sounds.py  cuts long recordings to upload-sized MP3s (20 min from 3
   'library' and re-applies gain on 'library:sound' (a volume change missed playing sounds before). A
   sound's volume (and a pad's) goes up to `MAX_VOLUME` (3, 300%, in library.js; the engine caps louder
   saved values); the Console mixer has a fader per playing sound (by sound id, added/removed one at a
-  time so a drag survives a pad going off) setting sound.volume. The Console turns off the browser's
+  time so a drag survives a pad going off) setting `engine.setMix(id, level)`: a level for this play only
+  that stands in for sound.volume (never saved; the user's rule). `pruneMix()` drops it once the sound has
+  no live voice (after `changed()`, so a looping track's next pass keeps it), and a new saved volume
+  replaces it. The Console turns off the browser's
   scroll anchoring and keeps its view still itself (`steady()`): Safari before 27 has none, and the
   mixer jumped on the iPad whenever a row was added above it.
 - Performance: per-frame code ('audio:tick') writes to the DOM only when what it shows changes, moves

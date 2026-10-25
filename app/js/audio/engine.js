@@ -64,7 +64,10 @@ class Voice {
     engine.voices.add(this);
   }
   get length() { return this.to - this.from; }
-  get gain() { return clamp(this.sound.volume ?? 1, 0, MAX_VOLUME) * clamp(this.volume, 0, MAX_VOLUME); }
+  get gain() {
+    const mixed = this.slot && this.engine.mix.get(this.sound.id);      // the Console's fader, for this play
+    return clamp(mixed ? mixed.level : (this.sound.volume ?? 1), 0, MAX_VOLUME) * clamp(this.volume, 0, MAX_VOLUME);
+  }
   get finalPass() { return this.repeat !== 0 && this.passes >= this.repeat - 1; }
   get progress() { return this.length > 0 ? clamp(this.position / this.length, 0, 1) : 0; }
   ramp(value, seconds) {
@@ -538,6 +541,7 @@ class Engine {
     this.layers = new Map();      // sounds on top: soundId -> {voice, volume, lowpass}
     this.lowpass = { amount: 0, deck: true, pads: false };     // amount 0 open .. 1 muffled; who goes through it
     this.pads = new Map();        // pad key -> Set<Voice>
+    this.mix = new Map();         // the Console's faders: soundId -> {level, base}, only while it plays
     this.ducked = false;
     this.preview = null;
     this.previewRoute = 'main';   // 'main', 'device' (the chosen output) or 'missing' (chosen, not connected: silent)
@@ -591,7 +595,7 @@ class Engine {
 
   changed() {
     clearTimeout(this._changed);
-    this._changed = setTimeout(() => { bus.emit('audio'); this.updateSession(); }, 0);
+    this._changed = setTimeout(() => { this.pruneMix(); bus.emit('audio'); this.updateSession(); }, 0);
   }
 
   // ---- levels ------------------------------------------------------------
@@ -807,6 +811,22 @@ class Engine {
     this.changed();
   }
 
+  // ---- the Console's faders -----------------------------------------------------------
+  // A fader sets how loud a sound plays this time, never its saved volume (Volume…, the editor): the
+  // level goes when the sound leaves the Playing list (checked after the change, so the next pass of a
+  // looping track keeps it) and when the saved volume changes, which is then what plays.
+  mixLevel(id) { return this.mix.get(id)?.level ?? library.get(id)?.volume ?? 1; }
+  setMix(id, level) {
+    this.mix.set(id, { level: clamp(level, 0, MAX_VOLUME), base: library.get(id)?.volume ?? 1 });
+    for (const v of this.voices) if (v.slot && v.sound.id === id) v.setVolume(v.volume);
+  }
+  pruneMix() {
+    if (!this.mix.size) return;
+    const live = new Set();
+    for (const v of this.voices) if (v.slot && v.state !== 'stopped' && v.state !== 'stopping') live.add(v.sound.id);
+    for (const id of [...this.mix.keys()]) if (!live.has(id)) this.mix.delete(id);
+  }
+
   /** Everything audible, for the Console: the deck's track, the sounds on top, and the effects (pads and
    *  effects played from the library). [{voice, role: 'deck' | 'top' | 'pad', id, where, lowpass}] */
   playingNow() {
@@ -1014,6 +1034,7 @@ bus.on('library:moved', ({ from, to }) => {
     engine.layers.delete(id);
     engine.layers.set(map(id), l);
   }
+  for (const [id, m] of [...engine.mix]) if (map(id) !== id) { engine.mix.delete(id); engine.mix.set(map(id), m); }
   for (const [id, b] of [...engine.buffers]) if (map(id) !== id) engine.buffers.set(map(id), b);
   for (const v of engine.voices) {
     const s = library.get(map(v.sound.id));
@@ -1025,7 +1046,10 @@ bus.on('library:moved', ({ from, to }) => {
 // A sound's settings changed (its volume, say): what is playing hears it at once. The library hands out
 // fresh copies of every sound when it reloads (a sound was added, GitHub was checked), so playing voices
 // are pointed at the current copy first; before, a volume change missed sounds started before a reload.
+// A new saved volume replaces the Console's level for this play.
 bus.on('library:sound', (s) => {
+  const m = engine.mix.get(s.id);
+  if (m && (s.volume ?? 1) !== m.base) engine.mix.delete(s.id);
   for (const v of engine.voices) if (v.sound.id === s.id) { v.sound = s; v.setVolume(v.volume); }
 });
 bus.on('library', () => {

@@ -425,9 +425,10 @@ export default function createConsole({ el }) {
     }
     syncChannels();
   }
-  // A fader for every sound that is playing (the track, sounds on top, pads), setting that sound's own
-  // volume from silent to 300%: the same setting as its Volume…, so it is kept with the sound. Strips
-  // are added and removed one by one, so a pad going off never interrupts a fader being dragged.
+  // A fader for every sound that is playing (the track, sounds on top, pads), from silent to 300%. It
+  // sets how loud the sound plays this time only (engine.setMix); its saved volume (Volume…, the editor)
+  // stays as it was, and comes back the next time it plays. Double-click goes back to the saved volume.
+  // Strips are added and removed one by one, so a pad going off never interrupts a fader being dragged.
   const pct = (x) => `${Math.round(x * MAX_VOLUME * 100)}%`;
   const faderAt = (volume) => clamp((volume ?? 1) / MAX_VOLUME, 0, 1);
   function syncChannels() {
@@ -439,15 +440,19 @@ export default function createConsole({ el }) {
     for (const it of items) {
       if (chans.has(it.id)) continue;
       const s = library.get(it.id) || it.voice.sound;
-      const start = faderAt(s.volume);
+      const start = faderAt(engine.mixLevel(it.id));
       const val = h('span', { class: 'cn-val num' }, pct(start));
-      const f = fader({ value: start, vertical, label: `${s.name} volume`, format: (x) => Math.round(x * MAX_VOLUME * 100), onInput: (x) => { library.update(it.id, { volume: x * MAX_VOLUME }); val.textContent = pct(x); } });
+      const f = fader({
+        value: start, vertical, label: `${s.name} volume, this play only`, format: (x) => Math.round(x * MAX_VOLUME * 100),
+        home: () => faderAt(library.get(it.id)?.volume),
+        onInput: (x) => { engine.setMix(it.id, x * MAX_VOLUME); val.textContent = pct(x); },
+      });
       const stop = () => {
         for (const p of engine.playingNow().filter((q) => q.id === it.id)) {
           if (p.role === 'deck') engine.stopMusic(1); else if (p.role === 'top') engine.stopLayer(p.id); else engine.stopPadVoice(p.voice);
         }
       };
-      const el = h('div', { class: 'cn-strip-ch is-layer', title: `${s.name} (${it.where})` },
+      const el = h('div', { class: 'cn-strip-ch is-layer', title: `${s.name} (${it.where}). The fader sets this play only; Volume… in its ⋯ menu sets the saved volume` },
         h('span', { class: 'cn-chname truncate' }, s.name),
         f.el, val,
         h('button', { class: 'btn-icon btn-sm', type: 'button', title: `Stop ${s.name}`, 'aria-label': `Stop ${s.name}`, onclick: stop }, icon('close')));
@@ -455,15 +460,15 @@ export default function createConsole({ el }) {
       chanHost.append(el);
     }
     let none = chanHost.querySelector('.cn-nolayers');
-    if (!chans.size && !none) chanHost.append(h('p', { class: 'meta cn-nolayers' }, 'Nothing is playing. Every sound that plays gets its own volume fader here.'));
+    if (!chans.size && !none) chanHost.append(h('p', { class: 'meta cn-nolayers' }, 'Nothing is playing. Every sound that plays gets a fader here that sets its volume for that play only (Volume… in its ⋯ menu sets the saved one).'));
     else if (chans.size && none) none.remove();
   }
-  // a volume changed elsewhere (Volume…, the editor): its fader follows
+  // its saved volume changed (Volume…, the editor): that is what plays now, and its fader follows
   function followVolume(s) {
     const c = chans.get(s.id);
     if (!c) return;
     if (c.f.el.classList.contains('is-dragging')) return;         // its own drag: already shown
-    c.f.value = faderAt(s.volume);
+    c.f.value = faderAt(engine.mixLevel(s.id));
     c.val.textContent = pct(c.f.value);
   }
   function busStrip(name, label, isMaster = false, vertical = true) {

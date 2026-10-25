@@ -1,9 +1,10 @@
 // A mixer fader: vertical or horizontal, dragged, wheeled or moved with the arrow keys.
-// value 0..1; onInput(value) while moving, onChange(value) when released.
+// value 0..1; onInput(value) while moving, onChange(value) when released. Double-click goes to home
+// (a value, or a function giving one).
 import { h } from './dom.js';
 import { clamp } from './util.js';
 
-export function fader({ value = 0.5, label, vertical = true, onInput, onChange, format = (v) => Math.round(v * 100) } = {}) {
+export function fader({ value = 0.5, label, vertical = true, onInput, onChange, home = 0.8, format = (v) => Math.round(v * 100) } = {}) {
   const fill = h('i', { class: 'fader-fill' });
   const thumb = h('b', { class: 'fader-thumb' });
   const track = h('div', { class: 'fader-track' }, fill, thumb);
@@ -18,8 +19,8 @@ export function fader({ value = 0.5, label, vertical = true, onInput, onChange, 
     el.setAttribute('aria-valuenow', String(format(v)));
     el.setAttribute('aria-valuetext', `${format(v)}`);
   };
-  const set = (nv, done = false) => {
-    nv = clamp(Math.round(nv * 100) / 100, 0, 1);
+  const set = (nv, done = false, exact = false) => {
+    nv = clamp(exact ? nv : Math.round(nv * 100) / 100, 0, 1);
     if (nv === v && !done) return;
     v = nv;
     draw();
@@ -61,7 +62,7 @@ export function fader({ value = 0.5, label, vertical = true, onInput, onChange, 
     if (e.key === 'Home') { e.preventDefault(); set(0, true); }
     if (e.key === 'End') { e.preventDefault(); set(1, true); }
   });
-  el.addEventListener('dblclick', () => set(0.8, true));
+  el.addEventListener('dblclick', () => set(typeof home === 'function' ? home() : home, true, true));
   draw();
   return {
     el,
