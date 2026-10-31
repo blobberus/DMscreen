@@ -30,7 +30,16 @@ const BUS = { music: 'music', ambience: 'ambience', effect: 'effects' };
 const busOf = (sound) => BUS[sound.kind] || 'music';
 const LP_OPEN = 20000;
 const LP_MIN = 150;            // the low-pass at its most muffled
+export const SPEED_MIN = 0.5;  // the speed control's range: half to double, pitch following like a tape
+export const SPEED_MAX = 2;
 let serial = 0;
+// Pitch follows speed for every voice: decoded sounds can't keep it, so streamed ones don't either.
+const rateOn = (el, r) => {
+  el.preservesPitch = false;
+  el.webkitPreservesPitch = false;
+  el.defaultPlaybackRate = r;                 // a reload of the element resets playbackRate to this
+  el.playbackRate = r;
+};
 
 // ---------------------------------------------------------------------------
 // Voices
@@ -60,6 +69,7 @@ class Voice {
     this.filter.type = 'lowpass';
     this.filter.Q.value = 0.8;
     this.filter.frequency.value = engine.cutoffFor(this);
+    this.rate = engine.rateFor(this);                  // playback speed, 1 normal; times below are real seconds
     this.out.connect(this.filter).connect(engine.buses[bus]);
     engine.voices.add(this);
   }
@@ -82,6 +92,7 @@ class Voice {
     this.volume = v;
     if (this.state === 'playing' && !this.fadingOut) this.ramp(this.gain, 0.06);
   }
+  setRate(r) { this.rate = r; }
   stop(fade = 0.12) {
     if (this.state === 'stopped' || this.state === 'stopping') return;
     this.state = 'stopping';
@@ -108,7 +119,7 @@ class Voice {
   /** Called by the engine's clock, a few times a second. */
   check() {
     if (this.state !== 'playing' || !this.onApproach || this.approached || !this.finalPass) return;
-    if (this.length - this.position <= this.onApproach.lead) {
+    if ((this.length - this.position) / this.rate <= this.onApproach.lead) {
       this.approached = true;
       this.onApproach.run(this);
     }
@@ -123,9 +134,10 @@ class Voice {
   scheduleFadeOut() {
     clearTimeout(this.fadeTimer);
     if (!this.fadeOut || !this.finalPass || this.state !== 'playing') return;
-    const remain = this.length - this.position;
-    const start = Math.max(0, remain - this.fadeOut);
-    this.fadeTimer = setTimeout(() => { if (this.state === 'playing') { this.fadingOut = true; this.ramp(0, Math.min(this.fadeOut, remain)); } }, start * 1000);
+    const remain = (this.length - this.position) / this.rate;
+    const fade = this.fadeOut / this.rate;                   // over the same stretch of the sound at any speed
+    const start = Math.max(0, remain - fade);
+    this.fadeTimer = setTimeout(() => { if (this.state === 'playing') { this.fadingOut = true; this.ramp(0, Math.min(fade, remain)); } }, start * 1000);
   }
 }
 
@@ -135,6 +147,7 @@ class MediaVoice extends Voice {
     const el = new Audio();
     el.preload = 'auto';
     el.src = library.mediaUrl(this.sound.id);
+    rateOn(el, this.rate);
     const node = ctx.createMediaElementSource(el);
     const g = ctx.createGain();
     node.connect(g).connect(this.out);
@@ -164,8 +177,13 @@ class MediaVoice extends Voice {
     clearTimeout(this.endTimer);
     if (this.state !== 'playing') return;
     const lead = !this.finalPass && this.loopFade > 0 ? this.loopFade : 0;
-    const remain = this.to - this.cur.el.currentTime - lead;
+    const remain = (this.to - this.cur.el.currentTime - lead) / this.rate;
     this.endTimer = setTimeout(() => this.passEnd(), Math.max(0, remain * 1000 - 15));
+  }
+  setRate(r) {
+    this.rate = r;
+    if (this.cur) rateOn(this.cur.el, r);
+    if (this.state === 'playing') { this.armEnd(); this.scheduleFadeOut(); }
   }
   passEnd() {
     if (this.state !== 'playing') return;
@@ -181,11 +199,12 @@ class MediaVoice extends Voice {
       this.cur = next;
       seekReady(next.el, this.from).then(() => next.el.play()).then(() => {
         const t = ctx.currentTime;
+        const fade = lead / this.rate;                       // the old pass has this long before its end
         next.g.gain.setValueAtTime(0, t);
-        next.g.gain.linearRampToValueAtTime(1, t + lead);
+        next.g.gain.linearRampToValueAtTime(1, t + fade);
         old.g.gain.setValueAtTime(old.g.gain.value, t);
-        old.g.gain.linearRampToValueAtTime(0, t + lead);
-        setTimeout(() => releasePair(old), lead * 1000 + 100);
+        old.g.gain.linearRampToValueAtTime(0, t + fade);
+        setTimeout(() => releasePair(old), fade * 1000 + 100);
         this.armEnd();
       }).catch(() => this.finish());
     } else {
@@ -273,29 +292,66 @@ class BufferVoice extends Voice {
     this.scheduleFadeOut();
     this.engine.changed();
   }
-  play(offset) {
+  // A new speed changes the playing source in place (no second copy: two copies a few ms apart cancelled
+  // each other out). Its end is a length of the sound's own seconds, which holds at any speed (the Web
+  // Audio spec, and what Chrome does); a sound looping a set number of times has a stop time instead,
+  // moved with each speed. Positions count from the last change (t0, off0, srcRate).
+  play(offset, fadeIn = 0) {
     const src = ctx.createBufferSource();
     src.buffer = this.buffer;
-    src.connect(this.out);
+    src.playbackRate.value = this.rate;
+    const g = ctx.createGain();
+    src.connect(g).connect(this.out);
     const looping = this.repeat === 0 || this.repeat - this.passes > 1;
     const now = ctx.currentTime;
+    if (fadeIn > 0) { g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(1, now + fadeIn); }
     if (looping) {
       src.loop = true;
       src.loopStart = this.from;
       src.loopEnd = this.to;
-      if (this.repeat !== 0) src.stop(now + (this.to - offset) + (this.repeat - this.passes - 1) * this.length);
+      src.start(now, offset);
+    } else {
+      src.start(now, offset, this.to - offset);
     }
-    src.start(now, offset, looping ? undefined : this.to - offset);
     src.onended = () => { if (src === this.src && this.state === 'playing') this.finish(); };
     this.src = src;
+    this.srcGain = g;
+    this.srcRate = this.rate;
     this.t0 = now;
     this.off0 = offset;
+    this._p0 = this.passes;
+    this.endLoops();
+  }
+  /** A set number of loops ends at a time: from the last change, what is left at the speed it plays. */
+  endLoops() {
+    if (!this.src?.loop || this.repeat === 0) return true;
+    const left = (this.to - this.off0) + (this.repeat - this._p0 - 1) * this.length;
+    try { this.src.stop(this.t0 + left / this.srcRate); return true; } catch { return false; }   // an older browser allows one stop
+  }
+  setRate(r) {
+    this.rate = r;
+    if (this.state !== 'playing' || !this.src || r === this.srcRate) return;   // the next play() takes it
+    const tc = ctx.currentTime + 0.01;                // a moment ahead, so the change lands where it is counted
+    const p = this.positionAt(tc);
+    this.src.playbackRate.cancelScheduledValues(tc);
+    this.src.playbackRate.setValueAtTime(r, tc);
+    this.t0 = tc;
+    this.off0 = this.from + p;
+    this._p0 = this.passes;
+    this.srcRate = r;
+    if (!this.endLoops()) {                           // a browser that won't move a stop: a new source, crossfaded
+      this.halt(0.03);
+      this.play(this.from + p, 0.03);
+    }
+    this.scheduleFadeOut();
   }
   get position() {
     if (this.state === 'paused') return this.pausedAt || 0;
+    return this.positionAt(ctx.currentTime);
+  }
+  positionAt(t) {
     if (!this.src) return 0;
-    const elapsed = ctx.currentTime - this.t0;
-    let p = this.off0 - this.from + elapsed;
+    let p = this.off0 - this.from + (t - this.t0) * this.srcRate;
     if (p >= this.length && this.src.loop) {
       const laps = Math.floor(p / this.length);
       p -= laps * this.length;
@@ -304,12 +360,24 @@ class BufferVoice extends Voice {
     return clamp(p, 0, this.length);
   }
   passesAtStart() { return this._p0 ?? 0; }
-  halt() {
-    if (!this.src) return;
-    this.src.onended = null;
-    try { this.src.stop(); } catch { /* not started */ }
-    this.src.disconnect();
+  halt(fade = 0) {
+    const { src, srcGain: g } = this;
+    if (!src) return;
     this.src = null;
+    this.srcGain = null;
+    src.onended = null;
+    if (fade > 0) {
+      const t = ctx.currentTime;
+      g.gain.cancelScheduledValues(t);
+      g.gain.setValueAtTime(g.gain.value, t);
+      g.gain.linearRampToValueAtTime(0, t + fade);
+      try { src.stop(t + fade + 0.01); } catch { /* its end was set already */ }
+      setTimeout(() => { try { src.disconnect(); g.disconnect(); } catch { /* gone */ } }, (fade + 0.06) * 1000);
+      return;
+    }
+    try { src.stop(); } catch { /* not started */ }
+    src.disconnect();
+    g.disconnect();
   }
   pause() {
     if (this.state !== 'playing') return;
@@ -540,6 +608,7 @@ class Engine {
     this.music = new Deck(this);  // the deck: whatever playlist or track is playing
     this.layers = new Map();      // sounds on top: soundId -> {voice, volume, lowpass}
     this.lowpass = { amount: 0, deck: true, pads: false };     // amount 0 open .. 1 muffled; who goes through it
+    this.speed = 1;               // playback speed for the same sounds as the low-pass (SPEED_MIN..SPEED_MAX)
     this.pads = new Map();        // pad key -> Set<Voice>
     this.mix = new Map();         // the Console's faders: soundId -> {level, base}, only while it plays
     this.ducked = false;
@@ -887,13 +956,27 @@ class Engine {
     this.lowpass.amount = clamp(amount, 0, 1);
     this.applyLowpass();
   }
-  /** Switch a playing sound (a playingNow() entry) into the low-pass or out of it. */
+  /** Switch a playing sound (a playingNow() entry) into the low-pass and speed, or out of them. */
   setFiltered(item, on) {
     if (item.role === 'deck') this.lowpass.deck = on;
     else if (item.role === 'pad') this.lowpass.pads = on;
     else { const l = this.layers.get(item.id); if (l) l.lowpass = on; }
     this.applyLowpass();
+    this.applySpeed();
     this.changed();
+  }
+
+  // ---- speed ----------------------------------------------------------------------------
+  // Faster or slower, pitch following, for the sounds switched into the low-pass (previews never). New
+  // sounds start at it. Not kept: a reload plays at normal speed.
+  rateFor(v) { return this.filtered(v) ? this.speed : 1; }
+  applySpeed() {
+    for (const v of this.voices) v.setRate(this.rateFor(v));
+    bus.emit('audio:speed');
+  }
+  setSpeed(r) {
+    this.speed = clamp(r, SPEED_MIN, SPEED_MAX);
+    this.applySpeed();
   }
 
   // ---- everything ---------------------------------------------------------------

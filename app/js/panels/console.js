@@ -1,7 +1,8 @@
 // Console: the screen's answer to "what is playing, and what can I fire next?"
 // Now playing with its flag strip (click a flag or press Alt+Shift+1..9), the transport, a list of
 // everything playing (the track, sounds on top, pads), each with its own scrub bar, loop, low-pass switch,
-// pause and stop, the low-pass sweep, the playlist keys, and the mixer with a fader for every sound playing.
+// pause and stop, the low-pass sweep and the speed (a bar that opens), the playlist keys, and the mixer
+// with a fader for every sound playing.
 import { h, icon, clear, setIcon } from '../core/dom.js';
 import { bus } from '../core/bus.js';
 import { keys } from '../core/keys.js';
@@ -9,12 +10,12 @@ import { kbd } from '../core/kbd.js';
 import { library, MAX_VOLUME } from '../core/library.js';
 import { fader } from '../core/fader.js';
 import { fmtTime, fmtDuration, clamp } from '../core/util.js';
-import { engine } from '../audio/engine.js';
+import { engine, SPEED_MIN, SPEED_MAX } from '../audio/engine.js';
 import { playlists, REPEAT } from '../audio/playlists.js';
 import { board } from '../audio/board.js';
 import { drawBars, themeColors, timeToX } from '../audio/wave.js';
 
-export default function createConsole({ el }) {
+export default function createConsole({ el, id, getState, setState }) {
   const root = h('div', { class: 'cn' });
   el.append(root);
 
@@ -55,12 +56,51 @@ export default function createConsole({ el }) {
   lpSlider.addEventListener('dblclick', () => { engine.setLowpass(0); syncLowpass(); });
   const lpPads = h('input', { type: 'checkbox' });
   lpPads.addEventListener('change', () => engine.setFiltered({ role: 'pad' }, lpPads.checked));
+  // the speed, for the same sounds: a button beside the low-pass (showing the speed) opens its bar.
+  // The slider is in octaves, so normal speed sits in the middle; it snaps to 1× near it.
+  const fmtSpeed = (r) => `${+r.toFixed(2)}×`;
+  const spBtnVal = h('span', { class: 'num cn-spbtnval' });
+  const spBtn = h('button', {
+    class: 'btn btn-sm cn-spbtn', type: 'button', 'aria-expanded': 'false', 'aria-controls': `${id}-speed`,
+    title: 'Speed: faster or slower, for the same sounds as the low-pass. Pitch follows, like a tape.',
+    onclick: () => openSpeed(spBar.hidden),
+  }, h('span', { class: 'meta' }, 'Speed'), spBtnVal, icon('chevron-down', 'icon-sm cn-spchev'));
+  const spSlider = h('input', { class: 'range cn-sp', type: 'range', min: Math.log2(SPEED_MIN), max: Math.log2(SPEED_MAX), step: 0.01, value: 0, 'aria-label': 'Speed' });
+  spSlider.addEventListener('input', () => {
+    const o = Number(spSlider.value);
+    engine.setSpeed(Math.abs(o) < 0.03 ? 1 : 2 ** o);
+  });
+  spSlider.addEventListener('dblclick', () => engine.setSpeed(1));
+  const spVal = h('span', { class: 'num meta cn-spval' });
+  const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+  const spPresets = h('div', { class: 'seg cn-sppresets', role: 'group', 'aria-label': 'Speed presets' },
+    ...SPEEDS.map((r) => h('button', { type: 'button', 'aria-pressed': 'false', dataset: { r }, onclick: () => engine.setSpeed(r) }, fmtSpeed(r))));
+  const spBar = h('div', { class: 'cn-speed', id: `${id}-speed`, hidden: true },
+    h('label', { class: 'cn-spwrap', title: 'Slide to change the speed. Double-click for normal speed.' }, h('span', { class: 'meta' }, 'Speed'), spSlider, spVal),
+    spPresets);
+  function openSpeed(open, keep = true) {
+    spBar.hidden = !open;
+    spBtn.setAttribute('aria-expanded', String(open));
+    spBtn.classList.toggle('is-open', open);
+    if (keep) setState?.({ speedOpen: open });
+  }
+  function syncSpeed() {
+    const r = engine.speed;
+    if (document.activeElement !== spSlider) spSlider.value = Math.log2(r);
+    spVal.textContent = fmtSpeed(r);
+    spBtnVal.textContent = r === 1 ? '' : fmtSpeed(r);          // a speed that isn't normal shows when closed
+    spBtn.classList.toggle('is-set', r !== 1);
+    for (const b of spPresets.children) b.setAttribute('aria-pressed', String(Math.abs(Number(b.dataset.r) - r) < 0.005));
+  }
   const playingHead = h('div', { class: 'cn-playhd' },
     h('h3', { class: 'cn-h' }, 'Playing'),
     h('span', { class: 'cn-spacer' }),
     h('label', { class: 'cn-lpwrap', title: 'Low-pass: slide right to muffle the sounds switched into it (their wave button). Double-click to open it again.' },
       h('span', { class: 'meta' }, 'Low-pass'), lpSlider, lpVal),
-    h('label', { class: 'switch cn-lppads', title: 'Pads go through the low-pass too' }, lpPads, h('span', { class: 'meta' }, 'Pads too')));
+    spBtn,
+    h('label', { class: 'switch cn-lppads', title: 'Pads go through the low-pass and speed too' }, lpPads, h('span', { class: 'meta' }, 'Pads too')));
+  openSpeed(!!getState?.().speedOpen, false);
+  syncSpeed();
   function syncLowpass() {
     const a = engine.lowpass.amount;
     lpSlider.value = a;
@@ -75,7 +115,7 @@ export default function createConsole({ el }) {
   const now = h('section', { class: 'cn-now', 'aria-label': 'Now playing' },
     h('div', { class: 'cn-head' }, h('div', { class: 'cn-titles' }, context, track), h('div', { class: 'cn-clock' }, pos, len)),
     strip, transport,
-    h('div', { class: 'cn-plwrap cn-playwrap' }, playingHead, playingList),
+    h('div', { class: 'cn-plwrap cn-playwrap' }, playingHead, spBar, playingList),
     flagList,
     h('div', { class: 'cn-plwrap' }, h('h3', { class: 'cn-h' }, 'Playlists'), plRow),
     h('div', { class: 'cn-plwrap' }, h('h3', { class: 'cn-h' }, 'Ambience'), ambRow),
@@ -290,7 +330,7 @@ export default function createConsole({ el }) {
         h('span', { class: 'cn-pbtns' },
           // sounds on top and pads loop or play once (the track loops with the transport's Repeat track)
           it.role === 'deck' ? null : h('button', { class: 'btn-icon btn-sm', type: 'button', 'aria-pressed': String(!!it.loop), title: it.loop ? 'Looping. Press to let it finish this pass.' : 'Plays once. Press to loop it.', 'aria-label': `Loop ${name}`, onclick: () => engine.setLooping(it, !it.loop) }, icon('loop', 'icon-sm')),
-          h('button', { class: 'btn-icon btn-sm', type: 'button', 'aria-pressed': String(!!it.lowpass), title: it.lowpass ? 'Goes through the low-pass. Press to keep it clear.' : 'Kept clear of the low-pass. Press to send it through.', 'aria-label': `Low-pass for ${name}`, onclick: () => engine.setFiltered(it, !it.lowpass) }, icon('wave', 'icon-sm')),
+          h('button', { class: 'btn-icon btn-sm', type: 'button', 'aria-pressed': String(!!it.lowpass), title: it.lowpass ? 'Goes through the low-pass and speed. Press to keep it clear.' : 'Kept clear of the low-pass and speed. Press to send it through.', 'aria-label': `Low-pass and speed for ${name}`, onclick: () => engine.setFiltered(it, !it.lowpass) }, icon('wave', 'icon-sm')),
           h('button', { class: 'btn-icon btn-sm', type: 'button', title: paused ? 'Resume' : 'Pause', 'aria-label': `${paused ? 'Resume' : 'Pause'} ${name}`, onclick: () => engine.togglePauseItem(it) }, icon(paused ? 'play' : 'pause', 'icon-sm')),
           h('button', { class: 'btn-icon btn-sm', type: 'button', title: `Stop ${name}`, 'aria-label': `Stop ${name}`, onclick: stop }, icon('stop', 'icon-sm'))),
         bar.el));
@@ -519,6 +559,7 @@ export default function createConsole({ el }) {
     bus.on('audio:tick', () => { if (!el.closest('.panel')?.hidden) tick(); }),
     bus.on('audio:levels', syncLevels),
     bus.on('audio:lowpass', syncLowpass),
+    bus.on('audio:speed', syncSpeed),
     // the track's flags or trim may have changed (render() rebuilds them only if so); not its volume
     bus.on('library:sound', (s) => { if (engine.music.voice?.sound.id === s.id) steady(render); }),
     bus.on('state:playlists', () => steady(renderPlaylists)),

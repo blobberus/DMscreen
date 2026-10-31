@@ -76,6 +76,20 @@
 .cn-lp { width: 140px; }
 .cn-lpval { min-width: 52px; }
 .cn-lppads { gap: 6px; }
+/* Speed: a button beside the low-pass (the speed shows on it when it isn't normal) opens a bar below */
+.cn-spbtn { gap: 5px; padding: 0 6px 0 9px; background: transparent; border-color: var(--border); }
+.cn-spbtn:hover { background: var(--raised); }
+.cn-spbtn.is-open { background: var(--raised); border-color: var(--control-hover); }
+.cn-spbtnval:empty { display: none; }
+.cn-spchev { color: var(--muted); transition: transform var(--dur) var(--ease); }
+.cn-spbtn.is-open .cn-spchev { transform: rotate(180deg); }
+.cn-speed { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; padding: 2px 0 2px; min-width: 0; }
+.cn-spwrap { display: flex; align-items: center; gap: 8px; flex: 1 1 240px; min-width: 0; max-width: 420px; }
+.cn-sp { flex: 1 1 auto; min-width: 100px; width: auto; }
+.cn-spval { min-width: 44px; }
+.cn-sppresets { flex: none; }
+.cn-sppresets > button { padding: 0 8px; }
+.cn-sppresets > button[aria-pressed="true"]::after { left: 8px; right: 8px; }
 .cn-playing { display: flex; flex-direction: column; border-top: 1px solid var(--rule); }
 .cn-prow {
   display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "title time btns" "bar bar bar";

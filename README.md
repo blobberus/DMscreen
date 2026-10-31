@@ -141,12 +141,17 @@ and pressing it again stops it. Pads always play over everything. A track's **pl
 skip arrow) queues it to play when the current track ends, then the playlist carries on; one sound waits
 at a time, shown in the top bar with an × to take it off. The Console's **Playing** list shows
 every sound that is playing, each with its own scrub bar (click or drag it to move just that sound),
-pause, stop and low-pass switch. Sounds on top and pads also have a loop button: on, the sound goes
+pause, stop and low-pass switch (which also takes it in or out of the speed). Sounds on top and pads also have a loop button: on, the sound goes
 round until you stop it; off, it finishes the pass it is in. (The track loops with Repeat track.)
 
 **Low-pass:** the slider above the Playing list muffles the sounds switched into it (the wave button on
 each row; the track and sounds on top are in by default, pads only with **Pads too**). Slide it while
 the party ducks behind a door or goes underwater; double-click it to open it again.
+
+**Speed:** the **Speed** button beside the low-pass opens a bar with a speed slider (half to double)
+and presets (0.5× to 2×). It speeds up or slows the same sounds as the low-pass, pitch following like
+a tape, and sounds started while it is set play at it too. The button shows the speed while the bar
+is closed; double-click the slider, or press 1×, for normal speed. A reload plays at normal speed.
 
 **A sound's volume:** its **⋯** menu (or right-click in the Sound library) has **Volume…**, the level it
 plays at everywhere, from silent up to 300%, kept with the sound; it changes what is already playing

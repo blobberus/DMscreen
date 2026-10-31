@@ -93,7 +93,13 @@ tools/shrink_sounds.py  cuts long recordings to upload-sized MP3s (20 min from 3
   `playingNow()` lists deck + on top + every pad voice for the Console's Playing list (each row scrubs with
   `seekItem`, pauses with `togglePauseItem`, and loops a top/pad sound with `setLooping`, which sets the
   voice's repeat live: MediaVoice re-arms its end, BufferVoice restarts its source where it is). Every voice has its own low-pass BiquadFilter; `setLowpass(0..1)` sweeps the ones switched
-  in (`lowpass.deck`, each layer's `lowpass`, `lowpass.pads`; `setFiltered`), previews never. Transport
+  in (`lowpass.deck`, each layer's `lowpass`, `lowpass.pads`; `setFiltered`), previews never.
+  `setSpeed(0.5..2)` sets `voice.rate` for the same voices (`rateFor`), pitch following (media elements
+  get `preservesPitch = false`; decoded sources can't keep it). Voice timers (ends, fade-outs, the deck's
+  crossfade lead, loop crossfades) are real seconds, so they divide by rate. A BufferVoice changes speed
+  in place on its source (`playbackRate` set 10 ms ahead, positions counted from there): its end is a
+  start() duration in buffer seconds, which holds at any speed; a counted loop re-calls stop(). Two
+  crossfaded copies a few ms apart cancelled out (dips to 9% on a tone) - don't go back to that. Transport
   (playPlaylist/playSingle/next/prev/togglePlay/jumpFlag/nextFlag/prevFlag), pads (firePad,
   stopPadVoice), fadeAll, toggleDuck, preview.
   Files ≤ 2 min decode to AudioBuffers; longer ones stream through MediaElementSource.
