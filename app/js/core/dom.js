@@ -60,7 +60,12 @@ export function icon(name, cls = '') {
   return svg;
 }
 
+/** Write text or an attribute only when it differs: an identical write still counts as a change and restyles. */
+export function setText(el, text) { if (el.textContent !== text) el.textContent = text; }
+export function setAttr(el, name, value) { if (el.getAttribute(name) !== value) el.setAttribute(name, value); }
+
 /** Point an existing icon at another symbol. */
 export function setIcon(svg, name) {
-  svg.querySelector('use')?.setAttribute('href', `img/icons.svg#i-${name}`);
+  const use = svg.querySelector('use');
+  if (use) setAttr(use, 'href', `img/icons.svg#i-${name}`);
 }

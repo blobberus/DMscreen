@@ -59,26 +59,34 @@ function buildTop() {
     engine.seek(clamp((e.clientX - r.left) / r.width, 0, 1) * v.length);
   });
   let flagsKey = '';
+  let titleKey = null;               // the title is rebuilt only when what it says changes (pads come and go often)
   const render = () => {
     const v = engine.music.voice;
     const s = v?.sound;
     setIcon(playIcon, v && v.state === 'playing' ? 'pause' : 'play');
-    if (!s) {
-      const pl = engine.playlist();
-      const top = engine.layers.size;
-      title.replaceChildren(h('span', { class: 'deck-idle' }, pl ? `${pl.name}: stopped. Alt+P to play.` : top ? `${top} ${top === 1 ? 'sound' : 'sounds'} on top. Alt+1 to 9 starts a playlist.` : 'Nothing playing. Alt+1 to 9 starts a playlist.'));
-      time.textContent = '';
-      bar.hidden = true;
-      return;
-    }
-    bar.hidden = false;
     const pl = engine.playlist();
     const top = engine.layers.size;
+    if (!s) {
+      const tk = `idle|${pl?.name}|${top}`;
+      if (tk !== titleKey) {
+        titleKey = tk;
+        title.replaceChildren(h('span', { class: 'deck-idle' }, pl ? `${pl.name}: stopped. Alt+P to play.` : top ? `${top} ${top === 1 ? 'sound' : 'sounds'} on top. Alt+1 to 9 starts a playlist.` : 'Nothing playing. Alt+1 to 9 starts a playlist.'));
+        time.textContent = '';
+        lastTime = '';
+        bar.hidden = true;
+      }
+      return;
+    }
+    if (bar.hidden) bar.hidden = false;
     // the one queued sound shows here, with a way to take it off
     const q = engine.music.queued && library.get(engine.music.queued);
-    const queued = q ? h('span', { class: 'deck-next' }, h('span', { class: 'deck-pl' }, '  · next: '), q.name,
-      h('button', { class: 'deck-unq', type: 'button', title: `Take ${q.name} off the queue`, 'aria-label': `Take ${q.name} off the queue`, onclick: () => engine.clearNext() }, icon('close', 'icon-sm'))) : '';
-    title.replaceChildren(pl ? h('span', { class: 'deck-pl' }, `${pl.name} · `) : '', s.name, top ? h('span', { class: 'deck-pl' }, `  + ${top} on top`) : '', queued);
+    const tk = `${pl?.name}|${s.name}|${top}|${q ? `${q.id}|${q.name}` : ''}`;
+    if (tk !== titleKey) {
+      titleKey = tk;
+      const queued = q ? h('span', { class: 'deck-next' }, h('span', { class: 'deck-pl' }, '  · next: '), q.name,
+        h('button', { class: 'deck-unq', type: 'button', title: `Take ${q.name} off the queue`, 'aria-label': `Take ${q.name} off the queue`, onclick: () => engine.clearNext() }, icon('close', 'icon-sm'))) : '';
+      title.replaceChildren(pl ? h('span', { class: 'deck-pl' }, `${pl.name} · `) : '', s.name, top ? h('span', { class: 'deck-pl' }, `  + ${top} on top`) : '', queued);
+    }
     const key = `${s.id}|${v.from}|${v.to}|${(s.flags || []).map((f) => f.t).join(',')}`;
     if (key !== flagsKey) {
       flagsKey = key;

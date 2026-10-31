@@ -3,7 +3,7 @@
 // everything playing (the track, sounds on top, pads), each with its own scrub bar, loop, low-pass switch,
 // pause and stop, the low-pass sweep and the speed (a bar that opens), the playlist keys, and the mixer
 // with a fader for every sound playing.
-import { h, icon, clear, setIcon } from '../core/dom.js';
+import { h, icon, clear, setIcon, setText, setAttr } from '../core/dom.js';
 import { bus } from '../core/bus.js';
 import { keys } from '../core/keys.js';
 import { kbd } from '../core/kbd.js';
@@ -219,28 +219,34 @@ export default function createConsole({ el, id, getState, setState }) {
 
   // ---- rendering ------------------------------------------------------------------
   let flagsKey = '';
+  // Runs on every 'audio' event (a pad starting or ending is one): it writes only what changed, since
+  // rewriting the same title, icons and buttons each time restyled the header several times a second.
+  let upKey = null;
   function render() {
     const v = engine.music.voice;
     const s = v?.sound;
     const pl = engine.playlist();
     setIcon(playIcon, v && v.state === 'playing' ? 'pause' : 'play');
-    shuffleBtn.setAttribute('aria-pressed', String(!!engine.music.shuffle));
+    setAttr(shuffleBtn, 'aria-pressed', String(!!engine.music.shuffle));
     setIcon(repeatIcon, engine.music.repeat === 'one' ? 'repeat-one' : 'repeat');
-    repeatBtn.setAttribute('aria-pressed', String(engine.music.repeat !== 'off'));
-    repeatBtn.title = REPEAT[engine.music.repeat] || 'Repeat';
+    setAttr(repeatBtn, 'aria-pressed', String(engine.music.repeat !== 'off'));
+    setAttr(repeatBtn, 'title', REPEAT[engine.music.repeat] || 'Repeat');
     renderPlaylists();
     renderEffects();
     renderPlaying();
-    strip.hidden = !s;
+    if (strip.hidden !== !s) strip.hidden = !s;
     if (!s) {
+      setText(track, pl ? `${pl.name} is stopped` : engine.layers.size ? 'Only sounds on top' : 'Nothing playing');
+      setText(context, pl ? 'Alt+P plays it again from this track.' : 'Start a playlist below or with Alt+1 to 9.');
+      if (now.classList.contains('is-stopped')) return;
       now.classList.add('is-stopped');
-      track.textContent = pl ? `${pl.name} is stopped` : engine.layers.size ? 'Only sounds on top' : 'Nothing playing';
-      context.textContent = pl ? 'Alt+P plays it again from this track.' : 'Start a playlist below or with Alt+1 to 9.';
       pos.textContent = '';
+      lastPos = '';
       len.textContent = '';
       clear(flagList);
       clear(flagLayer);
       upNext.textContent = '';
+      upKey = null;
       peaksFor = null;
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -248,16 +254,21 @@ export default function createConsole({ el, id, getState, setState }) {
       flagsKey = '';
       return;
     }
-    now.classList.remove('is-stopped');
-    playhead.hidden = false;
+    now.classList.toggle('is-stopped', false);
+    if (playhead.hidden) playhead.hidden = false;
     const m = engine.music;
-    track.textContent = s.name;
-    context.textContent = pl ? `${pl.name} · track ${m.index + 1} of ${m.queue.length}` : 'Playing on its own';
+    setText(track, s.name);
+    setText(context, pl ? `${pl.name} · track ${m.index + 1} of ${m.queue.length}` : 'Playing on its own');
     const nxt = engine.upNext();
-    upNext.replaceChildren(nxt ? h('span', null, h('span', { class: 'faint' }, m.queued ? 'Queued next  ' : 'Up next  '), nxt.name,
-      m.queued ? h('button', { class: 'btn-icon btn-sm cn-unq', type: 'button', title: `Take ${nxt.name} off the queue`, 'aria-label': `Take ${nxt.name} off the queue`, onclick: () => engine.clearNext() }, icon('close', 'icon-sm')) : null)
-      : h('span', { class: 'faint' }, m.repeat === 'off' && m.index === m.queue.length - 1 ? 'Last track' : ''));
-    len.textContent = ` / ${fmtTime(v.length)}`;
+    const last = m.repeat === 'off' && m.index === m.queue.length - 1;
+    const uk = nxt ? `${nxt.id}|${nxt.name}|${m.queued ? 1 : 0}` : `-|${last}`;
+    if (uk !== upKey) {
+      upKey = uk;
+      upNext.replaceChildren(nxt ? h('span', null, h('span', { class: 'faint' }, m.queued ? 'Queued next  ' : 'Up next  '), nxt.name,
+        m.queued ? h('button', { class: 'btn-icon btn-sm cn-unq', type: 'button', title: `Take ${nxt.name} off the queue`, 'aria-label': `Take ${nxt.name} off the queue`, onclick: () => engine.clearNext() }, icon('close', 'icon-sm')) : null)
+        : h('span', { class: 'faint' }, last ? 'Last track' : ''));
+    }
+    setText(len, ` / ${fmtTime(v.length)}`);
     loadPeaks(s);
     const key = `${s.id}|${v.from}|${v.to}|${JSON.stringify(s.flags || [])}`;
     if (key !== flagsKey) {
@@ -303,46 +314,61 @@ export default function createConsole({ el, id, getState, setState }) {
   }
   // ---- everything playing ------------------------------------------------------------
   // A row per sound, each with a scrub bar: click or drag it (or use the arrow keys) to move that sound.
-  // Rows are rebuilt only when what plays changes, so a drag isn't cut short by its own seek.
+  // Rows are kept by voice: a sound starting or ending adds or removes its own row, and a row is rebuilt
+  // only when its own state changes (paused, low-pass, loop), never under a drag. Rebuilding the whole
+  // list on every change cut a drag short when a pad started (the bar under the finger was replaced).
   const KIND = { music: 'Music', ambience: 'Ambience', effect: 'Effect' };
   // the bars move in whole pixels: a pad's bar redrawn in thousandths changed on every frame for nothing
   let barW = 0;
   new ResizeObserver(() => { if (playingList.clientWidth) barW = playingList.clientWidth; }).observe(playingList);
+  const rows = new Map();            // voice serial -> {el, v, time, bar, key}
   let playingRows = [];
   let playingKey = null;
+  const noneMsg = h('p', { class: 'meta cn-pnone' }, 'Nothing is playing. Start a playlist below, or put a sound on top with a track’s layers button in the Playlists pane.');
+  const rowKey = (it) => `${it.role}:${it.voice.state === 'paused'}:${it.lowpass}:${it.loop}`;
   function renderPlaying() {
     const items = engine.playingNow();
-    const key = items.map((it) => `${it.role}:${it.voice.serial}:${it.voice.state === 'paused'}:${it.lowpass}:${it.loop}`).join('|');
+    const key = items.map((it) => `${it.voice.serial}:${rowKey(it)}`).join('|');
     if (key === playingKey) { tickPlaying(); return; }
     playingKey = key;
-    clear(playingList);
-    playingRows = [];
-    if (!items.length) {
-      playingList.append(h('p', { class: 'meta cn-pnone' }, 'Nothing is playing. Start a playlist below, or put a sound on top with a track’s layers button in the Playlists pane.'));
-      return;
-    }
+    const live = new Set(items.map((it) => it.voice.serial));
+    for (const [serial, r] of rows) if (!live.has(serial)) { r.el.remove(); rows.delete(serial); }
+    if (!items.length) { playingRows = []; if (!noneMsg.isConnected) playingList.append(noneMsg); return; }
+    noneMsg.remove();
+    let prev = null;
     for (const it of items) {
-      const v = it.voice;
-      const name = v.sound.name;
-      const time = h('span', { class: 'cn-ptime time' });
-      const stop = () => (it.role === 'deck' ? engine.stopMusic(1) : it.role === 'top' ? engine.stopLayer(it.id) : engine.stopPadVoice(v));
-      const paused = v.state === 'paused';
-      const bar = scrubber(it);
-      playingList.append(h('div', { class: `cn-prow is-${it.role} ${paused ? 'is-paused' : ''}`, role: 'listitem' },
-        h('span', { class: 'cn-ptitle' },
-          h('span', { class: 'cn-pname truncate', title: name }, name),
-          h('span', { class: 'cn-pwhere meta truncate' }, `${KIND[v.sound.kind] || 'Sound'} · ${paused ? `${it.where} · paused` : it.where}`)),
-        time,
-        h('span', { class: 'cn-pbtns' },
-          // sounds on top and pads loop or play once (the track loops with the transport's Repeat track)
-          it.role === 'deck' ? null : h('button', { class: 'btn-icon btn-sm', type: 'button', 'aria-pressed': String(!!it.loop), title: it.loop ? 'Looping. Press to let it finish this pass.' : 'Plays once. Press to loop it.', 'aria-label': `Loop ${name}`, onclick: () => engine.setLooping(it, !it.loop) }, icon('loop', 'icon-sm')),
-          h('button', { class: 'btn-icon btn-sm', type: 'button', 'aria-pressed': String(!!it.lowpass), title: it.lowpass ? 'Goes through the low-pass and speed. Press to keep it clear.' : 'Kept clear of the low-pass and speed. Press to send it through.', 'aria-label': `Low-pass and speed for ${name}`, onclick: () => engine.setFiltered(it, !it.lowpass) }, icon('wave', 'icon-sm')),
-          h('button', { class: 'btn-icon btn-sm', type: 'button', title: paused ? 'Resume' : 'Pause', 'aria-label': `${paused ? 'Resume' : 'Pause'} ${name}`, onclick: () => engine.togglePauseItem(it) }, icon(paused ? 'play' : 'pause', 'icon-sm')),
-          h('button', { class: 'btn-icon btn-sm', type: 'button', title: `Stop ${name}`, 'aria-label': `Stop ${name}`, onclick: stop }, icon('stop', 'icon-sm'))),
-        bar.el));
-      playingRows.push({ v, time, bar });
+      const serial = it.voice.serial;
+      let r = rows.get(serial);
+      if (r && r.key !== rowKey(it) && !r.bar.dragging) { const nr = playingRow(it); r.el.replaceWith(nr.el); r = nr; rows.set(serial, r); }
+      if (!r) { r = playingRow(it); rows.set(serial, r); }
+      // new rows go in at their place; rows already there are never moved (that would end a drag)
+      const want = prev ? prev.el.nextSibling : playingList.firstChild;
+      if (r.el !== want && !r.el.isConnected) playingList.insertBefore(r.el, want);
+      prev = r;
     }
+    playingRows = items.map((it) => rows.get(it.voice.serial));
     tickPlaying();
+  }
+  function playingRow(it) {
+    const v = it.voice;
+    const name = v.sound.name;
+    const time = h('span', { class: 'cn-ptime time' });
+    const stop = () => (it.role === 'deck' ? engine.stopMusic(1) : it.role === 'top' ? engine.stopLayer(it.id) : engine.stopPadVoice(v));
+    const paused = v.state === 'paused';
+    const bar = scrubber(it, () => { playingKey = null; steady(renderPlaying); });     // caught up after a drag
+    const el = h('div', { class: `cn-prow is-${it.role} ${paused ? 'is-paused' : ''}`, role: 'listitem' },
+      h('span', { class: 'cn-ptitle' },
+        h('span', { class: 'cn-pname truncate', title: name }, name),
+        h('span', { class: 'cn-pwhere meta truncate' }, `${KIND[v.sound.kind] || 'Sound'} · ${paused ? `${it.where} · paused` : it.where}`)),
+      time,
+      h('span', { class: 'cn-pbtns' },
+        // sounds on top and pads loop or play once (the track loops with the transport's Repeat track)
+        it.role === 'deck' ? null : h('button', { class: 'btn-icon btn-sm', type: 'button', 'aria-pressed': String(!!it.loop), title: it.loop ? 'Looping. Press to let it finish this pass.' : 'Plays once. Press to loop it.', 'aria-label': `Loop ${name}`, onclick: () => engine.setLooping(it, !it.loop) }, icon('loop', 'icon-sm')),
+        h('button', { class: 'btn-icon btn-sm', type: 'button', 'aria-pressed': String(!!it.lowpass), title: it.lowpass ? 'Goes through the low-pass and speed. Press to keep it clear.' : 'Kept clear of the low-pass and speed. Press to send it through.', 'aria-label': `Low-pass and speed for ${name}`, onclick: () => engine.setFiltered(it, !it.lowpass) }, icon('wave', 'icon-sm')),
+        h('button', { class: 'btn-icon btn-sm', type: 'button', title: paused ? 'Resume' : 'Pause', 'aria-label': `${paused ? 'Resume' : 'Pause'} ${name}`, onclick: () => engine.togglePauseItem(it) }, icon(paused ? 'play' : 'pause', 'icon-sm')),
+        h('button', { class: 'btn-icon btn-sm', type: 'button', title: `Stop ${name}`, 'aria-label': `Stop ${name}`, onclick: stop }, icon('stop', 'icon-sm'))),
+      bar.el);
+    return { el, v, time, bar, key: rowKey(it) };
   }
   function tickPlaying() {
     for (const row of playingRows) {
@@ -353,7 +379,7 @@ export default function createConsole({ el, id, getState, setState }) {
     }
   }
   /** A progress bar that moves its sound: drag along it, click a spot, or use the arrow keys. */
-  function scrubber(it) {
+  function scrubber(it, onDragEnd) {
     const v = it.voice;
     const fill = h('i');
     const el = h('div', { class: 'cn-pbar', role: 'slider', tabindex: 0, 'aria-label': `Position in ${v.sound.name}`, 'aria-valuemin': 0 }, fill);
@@ -380,7 +406,7 @@ export default function createConsole({ el, id, getState, setState }) {
       engine.seekItem(it, p);
     });
     el.addEventListener('pointermove', (e) => { if (!dragging) return; const p = at(e); show(p); engine.seekItem(it, p); });
-    const end = () => { dragging = false; el.classList.remove('is-dragging'); };
+    const end = () => { if (!dragging) return; dragging = false; el.classList.remove('is-dragging'); onDragEnd?.(); };
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
     el.addEventListener('keydown', (e) => {
@@ -391,7 +417,7 @@ export default function createConsole({ el, id, getState, setState }) {
       engine.seekItem(it, clamp(v.position + step, 0, v.length));
     });
     el.setAttribute('aria-valuemax', Math.round(v.length));
-    return { el, sync: () => { if (!dragging) show(v.position); } };
+    return { el, sync: () => { if (!dragging) show(v.position); }, get dragging() { return dragging; } };
   }
 
   let plKey = '';
@@ -427,24 +453,32 @@ export default function createConsole({ el, id, getState, setState }) {
   // The pads of every bank that has any, in keyboard order: tap one to fire it, as on the soundboard.
   const KEY_ORDER = '1234567890QWERTYUIOPASDFGHJKLZXCVBNM';
   let fxKey = '';
+  // The buttons are built when the pads change; a pad starting or stopping only moves its mark (the row
+  // was rebuilt each time a pad played).
+  let fxButtons = [];
   function renderEffects() {
     const banks = board.banks().map((b) => ({ b, pads: Object.entries(b.pads || {}).filter(([, p]) => p && library.has(p.sound)) })).filter((x) => x.pads.length);
-    const key = banks.map(({ b, pads }) => `${b.id}:${pads.map(([k, p]) => `${k}=${p.label || p.sound}${board.live(k, b).playing ? '*' : ''}`).join(',')}`).join('|');
-    if (key === fxKey) return;
-    fxKey = key;
-    clear(fxRow);
-    if (!banks.length) { fxRow.append(h('p', { class: 'meta' }, 'No pads yet. Each sound in sounds/Effects becomes a pad.')); return; }
-    for (const { b, pads } of banks) {
-      if (banks.length > 1) fxRow.append(h('span', { class: 'meta cn-fxbank' }, b.name));
-      pads.sort(([a], [c]) => KEY_ORDER.indexOf(a) - KEY_ORDER.indexOf(c));
-      for (const [k, p] of pads) {
-        const label = p.label || library.get(p.sound)?.name || k;
-        fxRow.append(h('button', {
-          class: `cn-pl ${board.live(k, b).playing ? 'is-selected' : ''}`, type: 'button', title: `Fire ${label}${b.id === board.active().id ? ` (Alt+${k})` : ` (in ${b.name})`}`,
-          onclick: () => board.fire(k, b),
-        }, h('kbd', { class: 'kbd' }, k), h('span', { class: 'truncate' }, label)));
+    const key = `${board.active().id}|${banks.map(({ b, pads }) => `${b.id}:${b.name}:${pads.map(([k, p]) => `${k}=${p.label || p.sound}`).join(',')}`).join('|')}`;
+    if (key !== fxKey) {
+      fxKey = key;
+      clear(fxRow);
+      fxButtons = [];
+      if (!banks.length) { fxRow.append(h('p', { class: 'meta' }, 'No pads yet. Each sound in sounds/Effects becomes a pad.')); return; }
+      for (const { b, pads } of banks) {
+        if (banks.length > 1) fxRow.append(h('span', { class: 'meta cn-fxbank' }, b.name));
+        pads.sort(([a], [c]) => KEY_ORDER.indexOf(a) - KEY_ORDER.indexOf(c));
+        for (const [k, p] of pads) {
+          const label = p.label || library.get(p.sound)?.name || k;
+          const btn = h('button', {
+            class: 'cn-pl', type: 'button', title: `Fire ${label}${b.id === board.active().id ? ` (Alt+${k})` : ` (in ${b.name})`}`,
+            onclick: () => board.fire(k, b),
+          }, h('kbd', { class: 'kbd' }, k), h('span', { class: 'truncate' }, label));
+          fxButtons.push({ btn, k, b });
+          fxRow.append(btn);
+        }
       }
     }
+    for (const { btn, k, b } of fxButtons) btn.classList.toggle('is-selected', !!board.live(k, b).playing);
   }
 
   // ---- mixer strips ----------------------------------------------------------------
