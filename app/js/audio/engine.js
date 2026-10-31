@@ -199,7 +199,9 @@ class MediaVoice extends Voice {
       this.cur = next;
       seekReady(next.el, this.from).then(() => next.el.play()).then(() => {
         const t = ctx.currentTime;
-        const fade = lead / this.rate;                       // the old pass has this long before its end
+        // what the old pass has left by now (the new one took a moment to start), at the speed it plays:
+        // a fade timed from the start ran past the end of the file and cut off
+        const fade = clamp((this.to - old.el.currentTime) / (old.el.playbackRate || 1), 0.05, lead / this.rate);
         next.g.gain.setValueAtTime(0, t);
         next.g.gain.linearRampToValueAtTime(1, t + fade);
         old.g.gain.setValueAtTime(old.g.gain.value, t);

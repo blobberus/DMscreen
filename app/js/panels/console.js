@@ -83,14 +83,21 @@ export default function createConsole({ el, id, getState, setState }) {
     spBtn.setAttribute('aria-expanded', String(open));
     spBtn.classList.toggle('is-open', open);
     if (keep) setState?.({ speedOpen: open });
+    syncSpeed();
   }
+  // a drag sends a change per step: only what differs is written, and the button shows the speed only
+  // while the bar is closed (the header doesn't change under the finger)
   function syncSpeed() {
     const r = engine.speed;
     if (document.activeElement !== spSlider) spSlider.value = Math.log2(r);
-    spVal.textContent = fmtSpeed(r);
-    spBtnVal.textContent = r === 1 ? '' : fmtSpeed(r);          // a speed that isn't normal shows when closed
-    spBtn.classList.toggle('is-set', r !== 1);
-    for (const b of spPresets.children) b.setAttribute('aria-pressed', String(Math.abs(Number(b.dataset.r) - r) < 0.005));
+    const txt = fmtSpeed(r);
+    if (spVal.textContent !== txt) spVal.textContent = txt;
+    const onBtn = r === 1 || !spBar.hidden ? '' : txt;
+    if (spBtnVal.textContent !== onBtn) spBtnVal.textContent = onBtn;
+    for (const b of spPresets.children) {
+      const on = String(Math.abs(Number(b.dataset.r) - r) < 0.005);
+      if (b.getAttribute('aria-pressed') !== on) b.setAttribute('aria-pressed', on);
+    }
   }
   const playingHead = h('div', { class: 'cn-playhd' },
     h('h3', { class: 'cn-h' }, 'Playing'),
@@ -100,7 +107,6 @@ export default function createConsole({ el, id, getState, setState }) {
     spBtn,
     h('label', { class: 'switch cn-lppads', title: 'Pads go through the low-pass and speed too' }, lpPads, h('span', { class: 'meta' }, 'Pads too')));
   openSpeed(!!getState?.().speedOpen, false);
-  syncSpeed();
   function syncLowpass() {
     const a = engine.lowpass.amount;
     lpSlider.value = a;

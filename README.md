@@ -150,8 +150,9 @@ the party ducks behind a door or goes underwater; double-click it to open it aga
 
 **Speed:** the **Speed** button beside the low-pass opens a bar with a speed slider (half to double)
 and presets (0.5× to 2×). It speeds up or slows the same sounds as the low-pass, pitch following like
-a tape, and sounds started while it is set play at it too. The button shows the speed while the bar
-is closed; double-click the slider, or press 1×, for normal speed. A reload plays at normal speed.
+a tape, and sounds started while it is set play at it too. With the bar closed, the button shows a
+speed that isn't normal; double-click the slider, or press 1×, for normal speed. A reload plays at
+normal speed.
 
 **A sound's volume:** its **⋯** menu (or right-click in the Sound library) has **Volume…**, the level it
 plays at everywhere, from silent up to 300%, kept with the sound; it changes what is already playing
