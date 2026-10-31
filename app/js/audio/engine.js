@@ -238,12 +238,36 @@ class MediaVoice extends Voice {
   }
   seek(pos) {
     if (!this.cur) return;
-    this.cur.el.currentTime = this.from + clamp(pos, 0, this.length - 0.05);
+    const target = this.from + clamp(pos, 0, this.length - 0.05);
     this.approached = false;
     if (this.fadingOut && this.state === 'playing') { this.fadingOut = false; this.ramp(this.gain, 0.05); }
-    this.armEnd();
-    this.scheduleFadeOut();
-    this.engine.changed();
+    const jumped = () => { this.armEnd(); this.scheduleFadeOut(); this.engine.changed(); };
+    if (this.state !== 'playing') { this.cur.el.currentTime = target; jumped(); return; }
+    // A jump mid-wave clicked (every seek, on a tone): the element dips to silence, jumps, and comes back
+    // once it is playing from there. A newer seek takes over a pending one.
+    const pair = this.cur;
+    const g = pair.g.gain;
+    const n = this.seekN = (this.seekN || 0) + 1;
+    const t = ctx.currentTime;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(0, t + 0.012);
+    clearTimeout(this.seekTimer);
+    this.seekTimer = setTimeout(() => {
+      if (n !== this.seekN || pair !== this.cur) return;
+      const up = () => {
+        clearTimeout(this.seekBack);
+        if (n !== this.seekN || pair !== this.cur) return;
+        const t2 = ctx.currentTime;
+        g.cancelScheduledValues(t2);
+        g.setValueAtTime(0, t2);
+        g.linearRampToValueAtTime(1, t2 + 0.015);
+      };
+      pair.el.addEventListener('seeked', up, { once: true });
+      this.seekBack = setTimeout(up, 600);           // no 'seeked' (already there, or an error): back anyway
+      pair.el.currentTime = target;
+      jumped();
+    }, 14);
   }
   release() {
     if (this.cur) releasePair(this.cur);
@@ -404,9 +428,9 @@ class BufferVoice extends Voice {
   seek(pos) {
     const p = clamp(pos, 0, this.length - 0.01);
     if (this.state === 'paused') { this.pausedAt = p; this.engine.changed(); return; }
-    this.halt();
-    this._p0 = this.passes;
-    this.play(this.from + p);
+    this.halt(0.012);                                 // the old place fades out as the new one comes in: a
+    this._p0 = this.passes;                           // jump mid-wave clicked
+    this.play(this.from + p, 0.012);
     this.approached = false;
     if (this.fadingOut) { this.fadingOut = false; this.ramp(this.gain, 0.03); }
     this.scheduleFadeOut();
