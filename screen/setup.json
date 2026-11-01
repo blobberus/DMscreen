@@ -76,6 +76,15 @@
     "key": 6
    },
    {
+    "id": "Music/Epic & Introduction",
+    "dir": "Music/Epic & Introduction",
+    "shuffle": false,
+    "repeat": "all",
+    "crossfade": 3,
+    "name": "Epic & Introduction",
+    "key": null
+   },
+   {
     "id": "Ambience/Caves & Dungeons",
     "dir": "Ambience/Caves & Dungeons",
     "shuffle": false,
