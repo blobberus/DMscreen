@@ -34,51 +34,6 @@
  "playlists": {
   "list": [
    {
-    "id": "Music/01 Tavern",
-    "dir": "Music/01 Tavern",
-    "shuffle": false,
-    "repeat": "all",
-    "crossfade": 3,
-    "name": "Tavern",
-    "key": 1
-   },
-   {
-    "id": "Music/02 Calm Explore",
-    "dir": "Music/02 Calm Explore",
-    "shuffle": false,
-    "repeat": "all",
-    "crossfade": 3,
-    "name": "Calm Explore",
-    "key": 2
-   },
-   {
-    "id": "Music/03 Combat",
-    "dir": "Music/03 Combat",
-    "shuffle": false,
-    "repeat": "all",
-    "crossfade": 3,
-    "name": "Combat",
-    "key": 3
-   },
-   {
-    "id": "Music/04 Memorable",
-    "dir": "Music/04 Memorable",
-    "shuffle": false,
-    "repeat": "all",
-    "crossfade": 3,
-    "name": "Memorable",
-    "key": 4
-   },
-   {
-    "id": "Music/05 Custom",
-    "dir": "Music/05 Custom",
-    "shuffle": false,
-    "repeat": "all",
-    "crossfade": 3,
-    "name": "Custom",
-    "key": 5
-   },
-   {
     "id": "Music/06 Suspense",
     "dir": "Music/06 Suspense",
     "shuffle": false,
