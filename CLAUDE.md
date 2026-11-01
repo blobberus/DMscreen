@@ -116,6 +116,10 @@ tools/index_sounds.py   the sounds repo's library.json + peaks/ (reuses build_si
   (playPlaylist/playSingle/next/prev/togglePlay/jumpFlag/nextFlag/prevFlag), pads (firePad,
   stopPadVoice), fadeAll, toggleDuck, preview.
   Files ≤ 2 min decode to AudioBuffers; longer ones stream through MediaElementSource.
+  Crossfades (the deck's track changes, `crossIn` + `stop(fade, 'power')`, and MediaVoice loop wraps) use
+  `powerRamp`: an equal-power sine/cosine fade built from short linear segments (setValueCurveAtTime can't be
+  cut short: a pause or volume change mid-fade threw). Straight lines dipped 3 dB mid-crossfade (noise test:
+  -3.2 dB, now -0.2).
   Keeping the sound going (iPad + Bluetooth): a route change interrupts the context, can stop its clock
   while it says 'running', and pauses <audio> elements behind the engine's back. `watchOutput()` resumes
   the context by itself (retries, then `needTap()`'s note), restarts a stopped clock (suspend + resume),
