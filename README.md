@@ -105,6 +105,11 @@ Needs Python 3.10 or newer (already on this computer). Everything else installs 
 - **Adding sounds that are too big** (or from another device with Claude): see
   [ADDING_SOUNDS.md](ADDING_SOUNDS.md). `sync.bat` brings this copy up to date with GitHub, renames made
   on the website included; `start.bat` does it quietly each time.
+- **Adding sounds to the website:** put them in **Sounds to Add** on the Desktop, in `Music\<playlist>`,
+  `Ambience\<name>` or `Effects\<bank>` (a new name makes a new playlist or bank), then double-click
+  **`add_sounds.bat`**. It converts them to MP3, cuts anything over 25 MB to 20 minutes, and sends each
+  folder to the private sounds repo. What was added moves to `Sounds to Add\Added\<date>`. They're on the
+  screen about a minute later. `add_sounds.bat --dry-run` only shows what it would do.
 - `update.bat` updates the downloader. YouTube changes often, so run it when downloads start failing
   (or use Settings, YouTube, Update the downloader).
 - **Deleting:** a sound's **⋯** menu in the Sound library (or the editor's, or the Delete key) deletes it

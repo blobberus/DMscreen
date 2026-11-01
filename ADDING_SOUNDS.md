@@ -34,6 +34,17 @@ change the name).
   (`-q:a 4`: good quality, about 140 kb/s). Files at 128 kb/s or less stay as they are.
 - **Never put sounds in this repo (DMscreen):** it is public, and everything in it is published.
 
+## On the Windows PC, the easy way
+
+Drop the files into `Desktop\Sounds to Add\Music\<playlist>\` (or `Ambience\<name>\`, `Effects\<bank>\`; a
+new name makes a new playlist or pad bank) and double-click `add_sounds.bat` in DMscreen. It pulls
+DMscreen-sounds, keeps MP3s under 160 kb/s as they are, re-encodes the rest (MP4, M4A, WAV…) at LAME V4,
+and cuts anything still over 25 MB with `shrink_sounds.py`. It commits only the new files under `sounds/`
+(plus a README.md for a new folder), one commit per folder, pushing about 120 MB at a time. Only after a
+push succeeds do the originals move to `Sounds to Add\Added\<date>\`. It stops with a message if the
+clone has changes or commits of its own; sort those out with git, then run it again. `--dry-run` only
+shows what it would do. The steps below are the same thing by hand.
+
 ## The steps (for Claude)
 
 1. **Have both repos and the tools.** On a new device: `git clone https://github.com/blobberus/DMscreen.git`

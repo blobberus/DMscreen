@@ -12,6 +12,9 @@ vault/
 # Personal documents kept beside the repo (the repo is public)
 Communicate/
 
+# The sounds live in the private repo blobberus/DMscreen-sounds (clone beside this one), never here
+/sounds/
+
 # Tool output
 .taste-skill/
 *.tmp

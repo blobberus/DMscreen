@@ -40,6 +40,8 @@ The user shouldn't have to explain it. Keep the local clone current with `git pu
 server.py            auth gate, state docs, library + peaks + clips + export, downloads (jobs), YouTube
                      search/oEmbed, frame-check, notes vault API, config/tools
 start.bat update.bat launch / update (creates .venv on first run)
+add_sounds.bat       + tools/add_sounds.py: adds Desktop\Sounds to Add\<Category>\<folder>\* to the DMscreen-sounds
+                     clone (convert, shrink, commit per folder, push, move originals to Added\<date>)
 extension/           optional Chrome/Edge MV3 "frame helper": strips XFO/CSP for sub-frames in DM tabs only
 app/index.html       shell: rail, top bar (deck + master), #workspace
 app/login.html       the gate (js/login.js, css/login.css)
