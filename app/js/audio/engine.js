@@ -1165,9 +1165,21 @@ bus.on('library', () => {
   for (const v of engine.voices) { const s = library.get(v.sound.id); if (s) v.sound = s; }
 });
 
-// Keep the deck honest when a sound is deleted or edited.
+// A deleted sound stops wherever it plays (the deck, on top, pads, the preview), and the deck's playlist
+// lets go of it, so it carries on past the gap (it stopped there before).
 bus.on('library:removed', (id) => {
-  if (engine.music.voice?.sound.id === id) engine.music.stop(0.3);
-  if (engine.music.queued === id) engine.music.clearNext();
+  const deck = engine.music;
+  if (deck.voice?.sound.id === id) deck.stop(0.3);
+  if (deck.queued === id) deck.clearNext();
+  const at = deck.queue.indexOf(id);
+  if (at >= 0) {
+    deck.queue.splice(at, 1);
+    if (at <= deck.index) deck.index--;
+  }
+  deck.order = deck.order.filter((x) => x !== id);
   if (engine.layers.has(id)) engine.stopLayer(id, 0.3);
+  for (const set of engine.pads.values()) for (const v of [...set]) if (v.sound.id === id) engine.stopPadVoice(v, 0.3);
+  if (engine.preview?.sound.id === id) engine.stopPreview();
+  engine.buffers.delete(id);
+  engine.changed();
 });

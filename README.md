@@ -46,6 +46,11 @@ Open **https://blobberus.github.io/DMscreen/** and enter the password.
   editor). The file is renamed in the repo, and its flags, pads and keys go with it. Folders (playlists,
   pad banks) rename the same way, and **New** makes one. A playlist's ⋯ menu moves it between Music and
   Ambience.
+- **Delete a sound** from its **⋯** menu (on each row of the Sound library and the Playlists pane, and at
+  the top of the editor) or with the Delete key on a library row. **Delete a playlist, ambience playlist or
+  pad bank** from its ⋯ menu (or hold / right-click it in the Playlists list): that deletes its folder and
+  every sound in it from the repo, in one commit. You're asked first, and GitHub keeps deleted files in
+  its history, so they can be brought back there.
 - Renaming, and keeping your flags, pads and keys the same on every device, needs the device
   **connected to GitHub** once: Settings, GitHub has the four steps. It makes a token that can only change
   this repo's files, kept in that browser. Without it everything still plays, and changes stay on that device.
@@ -93,6 +98,9 @@ Needs Python 3.10 or newer (already on this computer). Everything else installs 
   on the website included; `start.bat` does it quietly each time.
 - `update.bat` updates the downloader. YouTube changes often, so run it when downloads start failing
   (or use Settings, YouTube, Update the downloader).
+- **Deleting:** a sound's **⋯** menu in the Sound library (or the editor's, or the Delete key) deletes it
+  and its file from this PC, and takes it off every playlist and pad. A playlist's ⋯ menu (or hold /
+  right-click it in the list) deletes the playlist only; its sounds stay in the library.
 
 ## Running the sound
 

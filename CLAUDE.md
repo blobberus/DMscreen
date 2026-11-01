@@ -142,7 +142,12 @@ tools/shrink_sounds.py  cuts long recordings to upload-sized MP3s (20 min from 3
 - Synced docs (`playlists boards keymap bookmarks merchants` + sound meta) live in `setup.doc` and go to GitHub
   6 s after a change (Contents API, 3-way merge on conflict). `settings layouts` stay in localStorage.
 - Renames/moves/deletes/new folders (and `library.moveFolder` between Music and Ambience): one Git Data API commit with the remapped setup.json, then a
-  pending op in localStorage until library.json shows it; emits 'library:moved' {from, to}.
+  pending op in localStorage until library.json shows it; emits 'library:moved' {from, to}. Deleting a folder
+  (`library.removeFolder`, a playlist / pad bank's "Delete this …") removes every blob under it plus its
+  setup entries (op `rmdir`), then emits 'library:removed' per sound; a deletion also turns a pending
+  move/mkdir/movedir into the deleted thing into a deletion of its source (`addDeletion`), or the
+  never-landing op brought it back for an hour. 'library:removed' stops the sound everywhere (deck,
+  layers, pads, preview) and drops it from the deck's queue so a playlist plays past it.
 
 ## Testing
 Run a throwaway server: `DMSCREEN_DATA=<scratch> DMSCREEN_PORT=7071 .venv/Scripts/python.exe server.py`

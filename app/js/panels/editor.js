@@ -7,18 +7,18 @@
 import { h, icon, clear, setIcon } from '../core/dom.js';
 import { bus } from '../core/bus.js';
 import { library, KIND_LABEL, MAX_VOLUME } from '../core/library.js';
-import { confirmDialog, promptDialog, showMenu, toast } from '../core/ui.js';
+import { promptDialog, showMenu, toast } from '../core/ui.js';
 import { clamp, fmtTime, parseTime, uid, hostOf } from '../core/util.js';
 import { engine } from '../audio/engine.js';
 import { drawBars, themeColors, fitCanvas, tickStep } from '../audio/wave.js';
 import { SITE } from '../core/mode.js';
 import * as site from '../core/site.js';
-import { soundItems, folderLabel, moveTo, explainFailure } from '../dialogs/files.js';
+import { soundItems, folderLabel, moveTo, explainFailure, deleteSound } from '../dialogs/files.js';
 
 const REPEATS = [[1, 'Once'], [2, '2 times'], [3, '3 times'], [4, '4 times'], [5, '5 times'], [10, '10 times'], [0, 'Forever']];
 const HANDLE_PX = 7;
 
-export function createEditor({ onDeleted, onSelectSound } = {}) {
+export function createEditor({ onSelectSound } = {}) {
   let sound = null;
   let peaks = null;
   let view = [0, 1];
@@ -120,7 +120,7 @@ export function createEditor({ onDeleted, onSelectSound } = {}) {
       sound.source ? { label: `Open the source (${hostOf(sound.source)})`, icon: 'external', onClick: () => window.open(sound.source, '_blank', 'noopener') } : null,
       sound.parent && library.get(sound.parent) ? { label: 'Open the sound this was cut from', icon: 'wave', onClick: () => onSelectSound?.(sound.parent) } : null,
       { sep: true },
-      { label: 'Delete this sound', icon: 'trash', onClick: () => remove() },
+      { label: 'Delete this sound…', icon: 'trash', onClick: () => deleteSound(sound) },
     ], { align: 'end' });
   }
   function download(url) {
@@ -128,14 +128,6 @@ export function createEditor({ onDeleted, onSelectSound } = {}) {
     document.body.append(a);
     a.click();
     a.remove();
-  }
-  async function remove() {
-    if (!sound) return;
-    if (!(await confirmDialog(`Delete “${sound.name}”? It comes off every playlist and pad, and the file is removed.`, { okLabel: 'Delete', danger: true }))) return;
-    const id = sound.id;
-    engine.stopPreview();
-    await library.remove(id);
-    onDeleted?.(id);
   }
 
   // ---- geometry ----------------------------------------------------------------

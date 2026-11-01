@@ -6,7 +6,7 @@
 // - the setup (flags, trims, pads, playlist keys, shortcuts, bookmarks, custom merchants) is screen/setup.json. Every
 //   change is kept in this browser at once and, when this device is connected to GitHub, committed a few
 //   seconds later. Layouts and settings belong to each device and stay in it.
-// - renames, moves, new folders and deletions are commits. GitHub needs a minute to publish them, so
+// - renames, moves, new folders and deletions (of sounds and whole folders) are commits. GitHub needs a minute to publish them, so
 //   until library.json catches up they are applied here from a pending list.
 import { bus } from './bus.js';
 import { github, blobSha } from './github.js';
@@ -111,6 +111,18 @@ async function fetchManifest() {
 function pending() { return readJSON(PENDING_KEY) || []; }
 function addPending(op) { writeJSON(PENDING_KEY, [...pending(), { ...op, at: Date.now() }]); }
 const under = (p, dir) => p === dir || p.startsWith(`${dir}/`);
+/** A deletion. Something deleted before its own move or new folder was published goes from where the
+ *  published list still has it (else that change, never landing, brought it back for an hour). */
+function addDeletion(op) {
+  const left = [];
+  for (const p of pending()) {
+    if (p.op === 'mkdir' && under(p.path, op.path)) continue;
+    if (p.op === 'move' && under(p.to, op.path)) left.push({ ...p, op: 'delete', path: p.from });
+    else if (p.op === 'movedir' && under(p.to, op.path)) left.push({ ...p, op: 'rmdir', path: p.from });
+    else left.push(p);
+  }
+  writeJSON(PENDING_KEY, [...left, { ...op, at: Date.now() }]);
+}
 const moveUnder = (p, from, to) => (under(p, from) ? to + p.slice(from.length) : p);
 function withParents(set, dir) {
   const seg = dir.split('/');
@@ -124,6 +136,7 @@ function settle(raw) {
   const landed = (op) => ({
     move: () => has.has(op.to) && !has.has(op.from),
     delete: () => !has.has(op.path),
+    rmdir: () => !dirs.has(op.path) && !raw.files.some((f) => under(f.path, op.path)),
     mkdir: () => dirs.has(op.path),
     movedir: () => dirs.has(op.to) && !dirs.has(op.from),
   }[op.op]?.() ?? true);
@@ -138,6 +151,9 @@ function settle(raw) {
       withParents(folders, dirOf(op.to));
     } else if (op.op === 'delete') {
       files = files.filter((x) => x.path !== op.path);
+    } else if (op.op === 'rmdir') {
+      files = files.filter((x) => !under(x.path, op.path));
+      for (const d of [...folders]) if (under(d, op.path)) folders.delete(d);
     } else if (op.op === 'mkdir') {
       withParents(folders, op.path);
     } else if (op.op === 'movedir') {
@@ -530,8 +546,32 @@ export async function deleteSound(id) {
   forget(doc, id);
   const text = setupText(doc);
   await github.commit(`Delete ${baseOf(id)}`, [{ path: `${SOUNDS}/${id}`, sha: null }, { path: SETUP_PATH, content: text }]);
-  addPending({ op: 'delete', path: id });
+  addDeletion({ op: 'delete', path: id });
   await committed(doc, text);
+}
+
+/** Delete a folder (a playlist, an ambience playlist or a pad bank) and every file in it. Resolves to
+ *  the ids of the sounds that went. The three category folders stay. */
+export async function deleteFolder(dir) {
+  needGitHub();
+  if (!dir.includes('/')) throw new Error(`The ${dir} folder stays. Delete the folders in it instead.`);
+  const ids = view.files.filter((f) => under(f.path, dir)).map((f) => f.path);
+  const doc = normal(clone(setup.doc));
+  for (const id of ids) forget(doc, id);
+  for (const k of Object.keys(doc.sounds)) if (under(k, dir)) delete doc.sounds[k];
+  if (doc.playlists.list) doc.playlists.list = doc.playlists.list.filter((pl) => !pl.dir || !under(pl.dir, dir));
+  if (doc.boards.banks) doc.boards.banks = doc.boards.banks.filter((b) => !b.dir || !under(b.dir, dir));
+  if (doc.boards.active && under(doc.boards.active, dir)) doc.boards.active = null;
+  const text = setupText(doc);
+  const prefix = `${SOUNDS}/${dir}/`;
+  await github.commit(`Delete the folder ${dir}`, async (listTree) => {
+    const gone = (await listTree()).filter((e) => e.type === 'blob' && e.path.startsWith(prefix)).map((e) => ({ path: e.path, sha: null, mode: e.mode }));
+    if (!gone.length) throw new Error("GitHub doesn't have that folder yet. Give it a minute and try again.");
+    return [...gone, { path: SETUP_PATH, content: text }];
+  });
+  addDeletion({ op: 'rmdir', path: dir });
+  await committed(doc, text);
+  return ids;
 }
 
 export async function createFolder(parent, name) {

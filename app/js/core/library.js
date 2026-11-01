@@ -130,6 +130,14 @@ export const library = {
   async renameFolder(dir, name) { return this.moved(await this.commit(() => site.renameFolder(dir, name))); },
   /** Move a folder to another category, keeping its name (a playlist to Ambience and back). */
   async moveFolder(dir, parent) { return this.moved(await this.commit(() => site.renameFolder(dir, site.folderName(dir), parent))); },
+  /** Delete a folder and every sound in it (website). Resolves to the ids that went. */
+  async removeFolder(dir) {
+    const ids = await this.commit(() => site.deleteFolder(dir));
+    for (const id of ids) peakCache.delete(id);
+    await this.load();
+    for (const id of ids) bus.emit('library:removed', id);
+    return ids;
+  },
   async createFolder(parent, name) {
     const dir = await this.commit(() => site.createFolder(parent, name));
     await this.load();

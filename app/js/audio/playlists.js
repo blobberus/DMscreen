@@ -137,8 +137,9 @@ export function startPlaylistKey(n) {
 bus.on('library', () => playlists.reconcile());
 bus.on('site:docs', () => playlists.reconcile());
 
-// Forget deleted sounds.
+// Forget deleted sounds (a folder going sends one of these per sound: only touch what refers to it).
 bus.on('library:removed', (id) => {
+  if (!state.get('playlists').list.some((pl) => pl.tracks.includes(id) || pl.ambience?.some((a) => a.id === id))) return;
   state.update('playlists', (d) => {
     for (const pl of d.list) {
       pl.tracks = pl.tracks.filter((t) => t !== id);

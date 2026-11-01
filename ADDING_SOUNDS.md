@@ -58,7 +58,8 @@ change the name).
 ## Renaming, moving and deleting
 
 Do it **on the screen** (a sound's ⋯ menu, a folder's menu): it renames the file in the repo and keeps
-its flags, pad and keys with it. Renaming files with git directly loses those, because
+its flags, pad and keys with it. Deleting a folder there deletes every sound in it and clears them out of
+`screen/setup.json` in the same commit. Renaming files with git directly loses those, because
 `screen/setup.json` refers to sounds by their path. Then `git pull` (or `sync.bat`) brings the new
 names to this copy.
 

@@ -24,6 +24,7 @@ About a minute later they are on the screen (the repo's **Actions** tab shows it
 - **Two digits and a space at the start set the order** without being shown: `01 Arrival.mp3`, `02 The long road.mp3`. It works for folders too; that is how the playlists get their number keys in order.
 - **A playlist can change sides:** its **⋯** menu in the Playlists pane has *Make it an ambience playlist* (or *a music playlist*), which moves its folder between `Music` and `Ambience`.
 - **Rename and move sounds on the screen** (a sound's menu, or the name and folder at the top of the editor). That renames the file here and keeps its flags, pads and keys with it. GitHub's own website can't rename audio files.
+- **Delete on the screen too:** a sound's **⋯** menu deletes the file; a playlist's or pad bank's ⋯ menu deletes its folder and every sound in it, and clears them out of `screen/setup.json` in the same commit. Deleted files stay in the repo's history.
 
 ## Good to know
 

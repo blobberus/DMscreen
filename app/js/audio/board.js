@@ -156,6 +156,7 @@ bus.on('site:docs', () => board.reconcile());
 
 // Forget pads whose sound was deleted.
 bus.on('library:removed', (id) => {
+  if (!board.banks().some((b) => Object.values(b.pads || {}).some((p) => p?.sound === id))) return;
   state.update('boards', (d) => {
     for (const b of d.banks) for (const [k, p] of Object.entries(b.pads)) if (p.sound === id) delete b.pads[k];
   });

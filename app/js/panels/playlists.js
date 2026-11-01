@@ -14,7 +14,7 @@ import { engine } from '../audio/engine.js';
 import { previewButton, onTopButton, queueButton, syncPreviewButtons } from '../audio/cue.js';
 import { playlists, REPEAT } from '../audio/playlists.js';
 import { SITE } from '../core/mode.js';
-import { newFolder, folderItems, soundItems, addButton, explainFailure } from '../dialogs/files.js';
+import { newFolder, folderItems, soundItems, addButton, explainFailure, deleteFolder } from '../dialogs/files.js';
 
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -75,11 +75,42 @@ export default function createPlaylists({ el, getState, setState }) {
       class: `pl-row ${pl.id === selected ? 'is-selected' : ''}`, type: 'button', role: 'option', 'aria-selected': String(pl.id === selected),
       onclick: () => select(pl.id),
       ondblclick: () => playlists.play(pl.id),
+      oncontextmenu: (e) => { e.preventDefault(); showMenu({ x: e.clientX, y: e.clientY }, menuItems(pl)); },
+      onkeydown: (e) => { if (e.key === 'Delete') { e.preventDefault(); removePlaylist(pl); } },
     },
     h('span', { class: 'pl-key' }, pl.key ? h('kbd', { class: 'kbd' }, String(pl.key)) : h('span', { class: 'faint' }, '–')),
     h('span', { class: 'pl-rowtext' },
       h('span', { class: `pl-rowname truncate ${playlists.playing(pl) ? 'is-live' : ''}` }, pl.name),
       h('span', { class: 'meta' }, `${plural(pl.tracks.length, 'track')} · ${fmtDuration(playlists.duration(pl))}`)));
+  }
+
+  /** A playlist's menu (its ⋯ button, or right-click / hold its row in the list). */
+  function menuItems(pl) {
+    if (SITE) return folderItems(pl.dir, { onMoved: select });
+    const isAmb = pl.kind === 'ambience';
+    return [
+      { label: 'Duplicate', icon: 'plus', onClick: () => {
+        const copy = playlists.create(`${pl.name} (copy)`, isAmb ? 'ambience' : 'music');
+        playlists.update(copy.id, { tracks: pl.tracks.slice(), shuffle: pl.shuffle, repeat: pl.repeat, crossfade: pl.crossfade });
+        select(copy.id);
+      } },
+      { label: isAmb ? 'Make it a music playlist' : 'Make it an ambience playlist', icon: isAmb ? 'playlist' : 'wave', onClick: () => {
+        playlists.update(pl.id, { kind: isAmb ? undefined : 'ambience' });
+        renderList();
+        renderEditor();
+      } },
+      { sep: true },
+      { label: 'Delete this playlist…', icon: 'trash', onClick: () => removePlaylist(pl) },
+    ];
+  }
+
+  /** Website: the folder and its sounds go from the repo. PC: the playlist goes, its sounds stay. */
+  async function removePlaylist(pl) {
+    if (SITE) { if (await deleteFolder(pl.dir) && selected === pl.id) select(null); return; }
+    if (await confirmDialog(`Delete the playlist “${pl.name}”? Its sounds stay in the library.`, { okLabel: 'Delete', danger: true })) {
+      playlists.remove(pl.id);
+      if (selected === pl.id) select(null); else renderList();
+    }
   }
 
   function renderEditor() {
@@ -125,21 +156,7 @@ export default function createPlaylists({ el, getState, setState }) {
       }));
     keySel.addEventListener('change', () => { playlists.update(pl.id, { key: keySel.value ? Number(keySel.value) : null }); renderList(); });
     const playBtn = h('button', { class: `btn ${playing ? '' : 'btn-primary'}`, type: 'button', title: playing ? 'Start it again from the first track' : 'Start it, ending what is playing', onclick: () => playlists.play(pl.id) }, icon('play'), playing ? 'Playing · restart' : 'Play');
-    const more = h('button', { class: 'btn-icon', type: 'button', 'aria-label': 'More', title: 'More', onclick: (e) => showMenu(e.currentTarget, SITE ? folderItems(pl.dir, { onMoved: select }) : [
-      { label: 'Duplicate', icon: 'plus', onClick: () => {
-        const copy = playlists.create(`${pl.name} (copy)`, kind);
-        playlists.update(copy.id, { tracks: pl.tracks.slice(), shuffle: pl.shuffle, repeat: pl.repeat, crossfade: pl.crossfade });
-        select(copy.id);
-      } },
-      { label: isAmb ? 'Make it a music playlist' : 'Make it an ambience playlist', icon: isAmb ? 'playlist' : 'wave', onClick: () => {
-        playlists.update(pl.id, { kind: isAmb ? undefined : 'ambience' });
-        renderList();
-        renderEditor();
-      } },
-      { label: 'Delete this playlist', icon: 'trash', onClick: async () => {
-        if (await confirmDialog(`Delete “${pl.name}”? Its sounds stay in the library.`, { okLabel: 'Delete', danger: true })) { playlists.remove(pl.id); select(null); }
-      } },
-    ], { align: 'end' }) }, icon('more'));
+    const more = h('button', { class: 'btn-icon', type: 'button', 'aria-label': 'More', title: SITE ? 'More: rename, move, delete…' : 'More: duplicate, delete…', onclick: (e) => showMenu(e.currentTarget, menuItems(pl), { align: 'end' }) }, icon('more'));
     editor.append(h('header', { class: 'pl-head' }, name, h('label', { class: 'pl-keylabel' }, h('span', { class: 'meta' }, 'Key'), keySel), playBtn, more));
 
     const tracks = h('ol', { class: 'pl-tracks', role: 'list' });

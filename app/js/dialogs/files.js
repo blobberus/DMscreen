@@ -1,9 +1,11 @@
 // The repo's sound folders, from the website. Adding sounds opens GitHub's upload page for the folder;
-// making and renaming folders, and renaming, moving or deleting sounds, are commits made from here, so
-// they need this device connected to GitHub (Settings, GitHub).
+// making, renaming and deleting folders, and renaming, moving or deleting sounds, are commits made from
+// here, so they need this device connected to GitHub (Settings, GitHub). Deleting a sound is here for
+// the PC version too.
 import { h, icon } from '../core/dom.js';
 import { library } from '../core/library.js';
 import * as site from '../core/site.js';
+import { SITE } from '../core/mode.js';
 import { openDialog, promptDialog, confirmDialog, showMenu, toast } from '../core/ui.js';
 import { openSettings } from './settings.js';
 import { volumeDialog } from './volume.js';
@@ -106,9 +108,25 @@ export function moveItems(s) {
   });
 }
 
+/** Delete a sound, once you say so (both versions). True when it went. */
 export async function deleteSound(s) {
-  if (!(await confirmDialog(`Delete “${s.name}” from the repo? It comes off every playlist and pad. GitHub keeps it in the history, so it can be brought back there.`, { okLabel: 'Delete', danger: true }))) return false;
+  const ask = SITE
+    ? `Delete “${s.name}” from the repo? It comes off every playlist and pad. GitHub keeps it in the history, so it can be brought back there.`
+    : `Delete “${s.name}”? It comes off every playlist and pad, and its file is deleted from this PC.`;
+  if (!(await confirmDialog(ask, { okLabel: 'Delete', danger: true }))) return false;
   return !!(await run(async () => { await library.remove(s.id); return true; }, () => `Deleted “${s.name}”.`));
+}
+
+/** Delete a folder and the sounds in it (website), once you say so. True when it went. */
+export async function deleteFolder(dir) {
+  const c = CATS.find((x) => x.kind === site.kindOfDir(dir));
+  const what = `the ${c?.one || 'folder'} “${site.folderName(dir)}”`;
+  const n = library.list().filter((s) => s.id.startsWith(`${dir}/`)).length;
+  const ask = n
+    ? `Delete ${what} and the ${n === 1 ? 'sound' : `${n} sounds`} in it from the repo?${c?.kind === 'effect' ? ` ${n === 1 ? 'Its pad goes' : 'Their pads go'} too.` : ''} GitHub keeps ${n === 1 ? 'it' : 'them'} in the history, so ${n === 1 ? 'it' : 'they'} can be brought back there.`
+    : `Delete ${what} from the repo? There are no sounds in it.`;
+  if (!(await confirmDialog(ask, { okLabel: 'Delete', danger: true }))) return false;
+  return !!(await run(async () => { await library.removeFolder(dir); return true; }, () => `Deleted ${what}.`));
 }
 
 /** The website's items for a sound's menu. */
@@ -129,6 +147,7 @@ export function soundItems(s) {
 export function folderItems(dir, { onMoved } = {}) {
   const kind = site.kindOfDir(dir);
   const other = { music: 'Ambience', ambience: 'Music' }[kind];
+  const one = CATS.find((c) => c.kind === kind)?.one || 'folder';
   return [
     { label: 'Add sounds on GitHub', icon: 'upload', onClick: () => uploadTo(dir) },
     dir.includes('/') ? { label: 'Rename the folder…', icon: 'edit', onClick: () => renameFolder(dir) } : null,
@@ -137,6 +156,8 @@ export function folderItems(dir, { onMoved } = {}) {
       if (to) onMoved(to);
     } } : null,
     { label: 'Open the folder on GitHub', icon: 'external', onClick: () => window.open(site.links.folder(dir), '_blank', 'noopener') },
+    dir.includes('/') ? { sep: true } : null,
+    dir.includes('/') ? { label: `Delete this ${one}…`, icon: 'trash', onClick: () => deleteFolder(dir) } : null,
   ];
 }
 

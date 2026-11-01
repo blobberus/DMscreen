@@ -16,7 +16,7 @@ import { playlists } from '../audio/playlists.js';
 import { createEditor } from './editor.js';
 import { SITE } from '../core/mode.js';
 import * as site from '../core/site.js';
-import { addSoundsMenu, addButton, folderItems, soundItems, folderLabel } from '../dialogs/files.js';
+import { addSoundsMenu, addButton, folderItems, soundItems, folderLabel, deleteSound } from '../dialogs/files.js';
 
 const STATUS = {
   queued: 'Waiting', starting: 'Starting', downloading: 'Downloading', converting: 'Converting to MP3',
@@ -57,10 +57,7 @@ export default function createLibrary({ el, getState, setState, workspace }) {
       fileIn);
   const jobsEl = h('div', { class: 'lb-jobs' });
   const listEl = h('div', { class: 'lb-list', role: 'listbox', 'aria-label': 'Sounds' });
-  const editor = createEditor({
-    onDeleted: () => { selectedId = null; setState({ selected: null }); narrowView = 'list'; render(); },
-    onSelectSound: (id) => select(id),
-  });
+  const editor = createEditor({ onSelectSound: (id) => select(id) });
   const back = h('button', { class: 'btn btn-sm lb-back', type: 'button', onclick: () => { narrowView = 'list'; layout(); } }, icon('back'), 'All sounds');
   const detailEmpty = h('div', { class: 'lb-detail-empty' },
     h('div', { class: 'empty' },
@@ -244,7 +241,10 @@ export default function createLibrary({ el, getState, setState, workspace }) {
       const row = h('div', {
         class: `lb-row ${s.id === selectedId ? 'is-selected' : ''}`, role: 'option', 'aria-selected': String(s.id === selectedId), tabindex: 0, draggable: true, 'data-id': s.id,
         onclick: (e) => { if (!e.target.closest('button')) select(s.id); },
-        onkeydown: (e) => { if (e.key === 'Enter') select(s.id); },
+        onkeydown: (e) => {
+          if (e.key === 'Enter') select(s.id);
+          else if (e.key === 'Delete' && e.target === e.currentTarget) { e.preventDefault(); deleteSound(s); }
+        },
         oncontextmenu: (e) => { e.preventDefault(); rowMenu(s, { x: e.clientX, y: e.clientY }); },
         ondragstart: (e) => { e.dataTransfer.setData('application/x-dm-sound', s.id); e.dataTransfer.setData('text/plain', s.name); e.dataTransfer.effectAllowed = 'copy'; },
       },
@@ -255,12 +255,13 @@ export default function createLibrary({ el, getState, setState, workspace }) {
       h('span', { class: 'lb-dur num' }, fmtTime(s.duration)),
       s.kind === 'effect' ? null : queueButton(s),
       s.kind === 'effect' ? null : onTopButton(s),
-      previewButton(s));
+      previewButton(s),
+      h('button', { class: 'btn-icon btn-sm lb-more', type: 'button', title: SITE ? 'More: volume, rename, move, delete…' : 'More: volume, pads, delete…', 'aria-label': `More for ${s.name}`, onclick: (e) => rowMenu(s, e.currentTarget, { align: 'end' }) }, icon('more')));
       return row;
     }
   }
 
-  function rowMenu(s, at) {
+  function rowMenu(s, at, opts) {
     const bank = board.active();
     const empty = ROWS.slice(1).flatMap((r) => r.keys).filter((k) => !board.reserved(k) && !bank.pads[k]).slice(0, 14);
     // on the website a playlist's tracks are its folder's files (move the sound there instead)
@@ -283,7 +284,9 @@ export default function createLibrary({ el, getState, setState, workspace }) {
       ...(SITE ? [{ sep: true }, ...soundItems(s)] : []),
       SITE ? null : { label: 'Kind', icon: 'wave', submenu: Object.entries(KIND_LABEL).map(([k, l]) => ({ label: l, checked: s.kind === k, onClick: () => library.update(s.id, { kind: k, ...(k === 'ambience' && s.repeat === 1 ? { repeat: 0, loopFade: 1.5 } : {}), ...(k !== 'ambience' && s.repeat === 0 ? { repeat: 1 } : {}) }) })) },
       SITE ? null : { label: 'Download as MP3', icon: 'download', onClick: () => { const [a, b] = library.region(s); location.href = library.exportUrl(s.id, { start: a, end: b }); } },
-    ]);
+      SITE ? null : { sep: true },
+      SITE ? null : { label: 'Delete…', icon: 'trash', onClick: () => deleteSound(s) },
+    ], opts);
   }
 
   function select(id) {
@@ -428,6 +431,8 @@ export default function createLibrary({ el, getState, setState, workspace }) {
     }),
     bus.on('audio:route', () => syncPreviewButtons(listEl)),
     bus.on('library:open', (id) => select(id)),
+    // deleted from anywhere (its menu, the editor, a playlist): the editor lets go of it
+    bus.on('library:removed', (id) => { if (id === selectedId) { selectedId = null; setState({ selected: null }); narrowView = 'list'; render(); } }),
     bus.on('site:publish', renderJobs),
     bus.on('library:moved', ({ from, to }) => {
       if (selectedId && (selectedId === from || selectedId.startsWith(`${from}/`))) select(to + selectedId.slice(from.length));
