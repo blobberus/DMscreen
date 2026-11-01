@@ -17,6 +17,18 @@
   },
   "Ambience/Tavern/Generic Tavern (MUSIC).mp3": {
    "volume": 0.6
+  },
+  "Ambience/Caves & Dungeons/Damp cave.mp3": {
+   "volume": 1.1
+  },
+  "Music/06 Suspense/Suspense.mp3": {
+   "volume": 0.7000000000000001
+  },
+  "Ambience/Towns & Cities/Blacksmith (NO HAMMER).mp3": {
+   "volume": 0.9299999999999999
+  },
+  "Ambience/Tavern/Crowded Tavern (NO MUSIC).mp3": {
+   "volume": 1.08
   }
  },
  "playlists": {
@@ -25,7 +37,7 @@
     "id": "Music/01 Tavern",
     "dir": "Music/01 Tavern",
     "shuffle": false,
-    "repeat": "off",
+    "repeat": "all",
     "crossfade": 3,
     "name": "Tavern",
     "key": 1
@@ -88,7 +100,7 @@
     "id": "Ambience/Caves & Dungeons",
     "dir": "Ambience/Caves & Dungeons",
     "shuffle": false,
-    "repeat": "one",
+    "repeat": "off",
     "crossfade": 3,
     "name": "Caves & Dungeons",
     "kind": "ambience",
@@ -141,7 +153,15 @@
    {
     "id": "Effects/Creatures",
     "dir": "Effects/Creatures",
-    "pads": {},
+    "pads": {
+     "Q": {
+      "sound": "Effects/fx/Bell Tower.mp3",
+      "label": "Bell Tower",
+      "mode": "once",
+      "from": null,
+      "toNextFlag": false
+     }
+    },
     "seen": [],
     "name": "Creatures"
    },
@@ -194,22 +214,7 @@
    {
     "id": "Effects/Misc",
     "dir": "Effects/Misc",
-    "pads": {
-     "Q": {
-      "sound": "Effects/fx/Bell Tower.mp3",
-      "label": "Bell Tower",
-      "mode": "once",
-      "from": null,
-      "toNextFlag": false
-     },
-     "W": {
-      "sound": "Effects/fx/Thunder.mp3",
-      "label": "Thunder",
-      "mode": "once",
-      "from": null,
-      "toNextFlag": false
-     }
-    },
+    "pads": {},
     "seen": [],
     "name": "Misc"
    },
@@ -221,7 +226,7 @@
     "name": "World"
    }
   ],
-  "active": "Effects/fx"
+  "active": "Effects/Creatures"
  },
  "keymap": {}
 }
