@@ -116,6 +116,13 @@ tools/index_sounds.py   the sounds repo's library.json + peaks/ (reuses build_si
   (playPlaylist/playSingle/next/prev/togglePlay/jumpFlag/nextFlag/prevFlag), pads (firePad,
   stopPadVoice), fadeAll, toggleDuck, preview.
   Files ≤ 2 min decode to AudioBuffers; longer ones stream through MediaElementSource.
+  Keeping the sound going (iPad + Bluetooth): a route change interrupts the context, can stop its clock
+  while it says 'running', and pauses <audio> elements behind the engine's back. `watchOutput()` resumes
+  the context by itself (retries, then `needTap()`'s note), restarts a stopped clock (suspend + resume),
+  and plays paused-behind-our-back elements again (`pausedBehindUs`, `revive` after 400 ms, `kick` at once
+  inside a tap; a loop's next pass is `starting` until it plays). `look()` runs on taps, visibility, focus,
+  pageshow and devicechange. Media buttons (`sessionActions`): play only resumes a paused track, pause only
+  pauses (both toggled before, so a speaker's stray "play" paused the music). `recoveries` logs what was done.
 - `keys`: actions with Alt combos (event.code based); unused letters fire pads via `board.fire(key)`.
   Frames: cross-site iframes give the page no pointer events, so a frame counts as chosen when the pointer
   was last seen within 24px of it (or a fresh tap, a Tab, or a tap inside a same-origin frame). A frame

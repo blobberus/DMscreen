@@ -78,6 +78,11 @@ every sound on this device** downloads all of them, so the screen works without 
 Tap pads to fire them, hold a finger on a sound or pad for its menu, and drag the lines between panes to
 resize them. With a keyboard, Option works as Alt, so every shortcut works.
 
+**Bluetooth speakers and headphones:** when one drops out for a moment, wakes up or reconnects, the iPad
+interrupts the sound; the screen brings it back by itself, each sound from where it was. If Safari wants a
+tap first, a note says so and any tap does it. The device's play and pause buttons only play and pause
+the track (a stray "play" from a speaker used to pause it).
+
 Sites that refuse to be shown inside another page open in a new tab on the iPad. Use Split View to keep
 them beside the screen.
 

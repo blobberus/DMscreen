@@ -154,6 +154,9 @@ class MediaVoice extends Voice {
     const pair = { el, node, g };
     el.addEventListener('ended', () => { if (pair === this.cur && this.state === 'playing') this.passEnd(); });
     el.addEventListener('timeupdate', () => { if (pair === this.cur && this.state === 'playing') this.armEnd(); });
+    // iPadOS pauses an <audio> by itself when the output changes (a Bluetooth speaker or headphones
+    // dropping for a moment): the engine still had it playing, so that sound stayed silent.
+    el.addEventListener('pause', () => { if (pair === this.cur && this.state === 'playing' && !el.ended) this.engine.revive(this); });
     return pair;
   }
   async start(at = 0) {
@@ -200,8 +203,10 @@ class MediaVoice extends Voice {
       const old = this.cur;
       const next = this.makeElement();
       next.g.gain.value = 0;
+      next.starting = true;               // not yet playing: not 'paused behind our back' either
       this.cur = next;
       seekReady(next.el, this.from).then(() => next.el.play()).then(() => {
+        next.starting = false;
         const t = ctx.currentTime;
         // what the old pass has left by now (the new one took a moment to start), at the speed it plays:
         // a fade timed from the start ran past the end of the file and cut off
@@ -675,15 +680,91 @@ class Engine {
     // Safari only lets sound start inside a tap (touchend or click), and "interrupts" it after a call
     // or another app's audio; any later tap or key wakes it again.
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* older Safari */ }
-    const wake = () => { if (ctx.state !== 'running' && ctx.state !== 'closed') ctx.resume().catch(() => {}); };
-    for (const type of ['pointerdown', 'touchend', 'click', 'keydown']) window.addEventListener(type, wake, true);
-    ctx.addEventListener('statechange', () => bus.emit('audio:state', ctx.state));
+    for (const type of ['pointerdown', 'touchend', 'click', 'keydown']) window.addEventListener(type, () => this.look(true), true);
+    this.watchOutput();
     setInterval(() => { for (const v of this.voices) v.check(); }, 100);
     this.loop();
     this.mediaSession();
   }
 
   get suspended() { return !ctx || ctx.state !== 'running'; }
+
+  // ---- keeping the sound going ------------------------------------------------------------
+  // iPadOS interrupts the audio when the output route changes (a Bluetooth speaker or headphones
+  // reconnecting or waking, another app): the context goes 'interrupted' or 'suspended', its clock can
+  // stop while it still says 'running', and <audio> elements get paused behind the engine's back. The
+  // sound used to stay off until the next tap, and a paused element until its track was started again.
+  // Now the context is resumed by itself (Safari allows that after an interruption), a stopped clock is
+  // restarted, paused elements play on from where they were, and if Safari insists on a tap, a note says
+  // so and the next tap brings everything back. this.recoveries keeps what was done (for tests).
+  watchOutput() {
+    this.recoveries = [];
+    let retries = [];
+    ctx.addEventListener('statechange', () => {
+      bus.emit('audio:state', ctx.state);
+      retries.forEach(clearTimeout);
+      retries = [];
+      if (ctx.state === 'running') { this.recovered(); return; }
+      if (ctx.state === 'closed' || this.cycling) return;
+      retries = [0, 300, 1000, 2500, 5000].map((ms) => setTimeout(() => this.resumeContext('interrupted'), ms));
+      retries.push(setTimeout(() => { if (ctx.state !== 'running' && this.anythingPlaying()) this.needTap(); }, 3000));
+    });
+    let last = ctx.currentTime;
+    let still = 0;
+    let cycled = 0;
+    setInterval(() => {
+      if (document.hidden || !this.anythingPlaying()) { still = 0; last = ctx.currentTime; return; }
+      if (ctx.state !== 'running') { this.resumeContext('watch'); return; }
+      still = ctx.currentTime === last ? still + 1 : 0;
+      last = ctx.currentTime;
+      if (still >= 2 && Date.now() - cycled > 5000) { cycled = Date.now(); this.restartClock(); }
+      for (const v of this.voices) if (this.pausedBehindUs(v)) this.revive(v);
+    }, 750);
+    // back on the page, or the outputs changed (a speaker connecting): look at once
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) this.look(); });
+    window.addEventListener('pageshow', () => this.look());
+    window.addEventListener('focus', () => this.look());
+    navigator.mediaDevices?.addEventListener?.('devicechange', () => this.look());
+  }
+  /** Resume what was interrupted. tapped: inside a tap or key, where Safari allows anything. */
+  look(tapped = false) {
+    if (!ctx) return;
+    this.resumeContext(tapped ? 'tap' : 'look');
+    for (const v of this.voices) if (this.pausedBehindUs(v)) (tapped ? this.kick(v) : this.revive(v));
+  }
+  resumeContext(why) {
+    if (ctx.state === 'running' || ctx.state === 'closed') return;
+    this.recoveries.push({ what: 'context', why, state: ctx.state, at: Date.now() });
+    ctx.resume().catch(() => {});
+  }
+  /** A clock that stopped while 'running' (left so by a route change): suspend and resume it. */
+  async restartClock() {
+    this.cycling = true;
+    this.recoveries.push({ what: 'clock', at: Date.now() });
+    try { await ctx.suspend(); await ctx.resume(); } catch { /* the watch tries again */ }
+    this.cycling = false;
+  }
+  pausedBehindUs(v) {
+    return v instanceof MediaVoice && v.state === 'playing' && !!v.cur && !v.cur.starting && v.cur.el.paused && !v.cur.el.ended && v.cur.el.currentTime < v.to - 0.1;
+  }
+  /** Play a paused-behind-our-back element again in a moment (a route change settles first). */
+  revive(v) {
+    clearTimeout(v.reviveTimer);
+    v.reviveTimer = setTimeout(() => { if (this.pausedBehindUs(v)) this.kick(v); }, 400);
+  }
+  kick(v) {
+    clearTimeout(v.reviveTimer);
+    this.recoveries.push({ what: 'element', sound: v.sound.name, at: Date.now() });
+    v.cur.el.play().then(() => this.recovered(), (e) => { if (e?.name === 'NotAllowedError') this.needTap(); });
+  }
+  needTap() {
+    if (this.tapAsked) return;
+    this.tapAsked = true;
+    bus.emit('toast', { message: 'The sound was interrupted (a Bluetooth speaker or headphones reconnecting?). Tap anywhere to bring it back.', type: 'error', timeout: 20000 });
+  }
+  recovered() {
+    if (ctx.state === 'running' && ![...this.voices].some((v) => this.pausedBehindUs(v))) this.tapAsked = false;
+  }
 
   loop() {
     const frame = () => {
@@ -1117,10 +1198,16 @@ class Engine {
     if (!('mediaSession' in navigator)) return;
     const ms = navigator.mediaSession;
     const on = (a, fn) => { try { ms.setActionHandler(a, fn); } catch { /* unsupported */ } };
-    on('play', () => this.togglePlay());
-    on('pause', () => this.togglePlay());
-    on('nexttrack', () => this.next());
-    on('previoustrack', () => this.prev());
+    // Bluetooth headphones and speakers send these, some by themselves when they wake or reconnect. Both
+    // used to toggle, so a stray "play" paused the music. Play only resumes a paused track (it never
+    // starts one out of the blue at the table); pause only pauses.
+    this.sessionActions = {
+      play: () => { if (this.music.voice?.state === 'paused') this.music.toggle(); },
+      pause: () => { if (this.music.voice?.state === 'playing') this.music.toggle(); },
+      nexttrack: () => this.next(),
+      previoustrack: () => this.prev(),
+    };
+    for (const [a, fn] of Object.entries(this.sessionActions)) on(a, fn);
   }
   updateSession() {
     if (!('mediaSession' in navigator)) return;
