@@ -32,7 +32,8 @@ It comes in two versions that look and play the same:
 
 Open **https://blobberus.github.io/DMscreen/** and enter the password.
 
-**Sounds live in the repo, and the folders are the screen** ([full guide](sounds/README.md)):
+**The sounds live in a private repo, [blobberus/DMscreen-sounds](https://github.com/blobberus/DMscreen-sounds),
+and its folders are the screen** ([adding sounds](ADDING_SOUNDS.md)):
 
 | Folder | On the screen |
 |---|---|
@@ -40,33 +41,38 @@ Open **https://blobberus.github.io/DMscreen/** and enter the password.
 | `sounds/Ambience/<name>/` | the ambience playlist *name*, listed apart from the music |
 | `sounds/Effects/<name>/` | the soundboard bank *name*; each sound takes the next free letter key |
 
+- **Each device plays them once it is connected to GitHub** (Settings, GitHub has the four steps). The
+  repo is private, so the screen reads it with that device's token, which can only reach DMscreen and
+  DMscreen-sounds and is kept in that browser. A sound streams the first time it plays, then stays on the
+  device and plays offline. A token made before the sounds moved (DMscreen only) needs DMscreen-sounds
+  added on GitHub; Settings, GitHub says how.
 - **Add sounds:** every folder on the screen has an **Add** button. It opens GitHub's upload page for
-  that folder: drop in MP3s and press **Commit changes**. They appear on the screen about a minute later.
+  that folder of the sounds repo: drop in MP3s and press **Commit changes**. They appear on the screen
+  about a minute later, once the repo's *Index the sounds* workflow has read them.
 - **Rename and move sounds** on the screen (a sound's menu, or the name and folder at the top of the
-  editor). The file is renamed in the repo, and its flags, pads and keys go with it. Folders (playlists,
+  editor). The file is renamed in the sounds repo, and its flags, pads and keys go with it. Folders (playlists,
   pad banks) rename the same way, and **New** makes one. A playlist's ⋯ menu moves it between Music and
   Ambience.
 - **Delete a sound** from its **⋯** menu (on each row of the Sound library and the Playlists pane, and at
   the top of the editor) or with the Delete key on a library row. **Delete a playlist, ambience playlist or
   pad bank** from its ⋯ menu (or hold / right-click it in the Playlists list): that deletes its folder and
-  every sound in it from the repo, in one commit. You're asked first, and GitHub keeps deleted files in
-  its history, so they can be brought back there.
-- Renaming, and keeping your flags, pads and keys the same on every device, needs the device
-  **connected to GitHub** once: Settings, GitHub has the four steps. It makes a token that can only change
-  this repo's files, kept in that browser. Without it everything still plays, and changes stay on that device.
-- The setup (flags, trims, pads, playlist keys, shortcuts, bookmarks) is saved in `screen/setup.json`.
-  Layouts and settings belong to each device.
+  every sound in it from the sounds repo, in one commit. You're asked first, and GitHub keeps deleted
+  files in its history, so they can be brought back there.
+- The setup (flags, trims, pads, playlist keys, shortcuts, bookmarks) is saved in `screen/setup.json`
+  here, kept the same on every connected device. Layouts and settings belong to each device.
 - **Notes** are kept in the browser on that device, never in the repo (it's public). Settings, Notes
   downloads them all as Markdown for Obsidian.
-- **The repo is public**, so anyone can download its sounds. Only add sounds you're allowed to share.
-  The password keeps people out of the screen, not out of the files.
+- **This repo is public** (the screen's code and its setup); the password keeps people out of the
+  screen, not out of these files. The sounds aren't here: only your connected devices can play or
+  download them. Never put sounds in this repo.
 - The website can't search or download from YouTube (that needs the PC version); its YouTube pane plays
   a pasted link.
 
 ### On an iPad
 
 Open the site in Safari, then **Share, Add to Home Screen**. It opens full-screen like an app, and Safari
-won't clear its sounds and setup. Sounds you've played stay on the iPad; **Settings, This device, Keep
+won't clear its sounds and setup. Connect it to GitHub once (Settings, GitHub) so it can play the sounds.
+Sounds you've played stay on the iPad; **Settings, This device, Keep
 every sound on this device** downloads all of them, so the screen works without Wi-Fi.
 
 Tap pads to fire them, hold a finger on a sound or pad for its menu, and drag the lines between panes to
@@ -77,10 +83,13 @@ them beside the screen.
 
 ### How it's published
 
-`.github/workflows/pages.yml` runs `tools/build_site.py` on every push: it copies `app/`, turns each
-sound into `media/<content id>` with a waveform, and lists them in `library.json`. Waveforms are cached
-between runs. Saving `screen/setup.json` doesn't rebuild; the site reads it live. Run the build
-yourself with `python tools/build_site.py` (needs `pip install imageio-ffmpeg`).
+`.github/workflows/pages.yml` runs `tools/build_site.py` on every push: it copies `app/`, marks it with
+the sounds repo and stamps each file with the build's version. No sounds are published. In the sounds
+repo, its *Index the sounds* workflow runs this repo's `tools/index_sounds.py` whenever sounds change: it
+lists every sound (path, content id, size, length) in that repo's `library.json`, with a waveform per
+sound in `peaks/`. The site reads that list through the GitHub API, and its offline worker (`sw.js`)
+fetches each sound by its content id with the device's token, streaming it the first time and keeping
+it. Saving `screen/setup.json` doesn't rebuild; the site reads it live.
 
 ## The PC version
 

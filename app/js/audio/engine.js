@@ -161,7 +161,11 @@ class MediaVoice extends Voice {
     this.state = 'loading';
     await seekReady(this.cur.el, this.from + at);
     if (this.state !== 'loading') return;
-    try { await this.cur.el.play(); } catch (e) { this.dispose(); throw e; }
+    try { await this.cur.el.play(); } catch (e) {
+      const failed = !!this.cur.el.error;     // it never loaded (no connection, or GitHub said no)
+      this.dispose();
+      throw failed ? new Error('It didn’t load: is this device online?') : e;
+    }
     if (this.state !== 'loading') { this.cur.el.pause(); return; }
     this.state = 'playing';
     this.ramp(this.gain, this.fadeIn || 0.02);
@@ -291,11 +295,12 @@ function releasePair(pair) {
 function seekReady(el, t) {
   return new Promise((resolve) => {
     const done = () => { cleanup(); resolve(); };
-    const cleanup = () => { el.removeEventListener('loadedmetadata', onMeta); el.removeEventListener('seeked', done); clearTimeout(timer); };
+    const cleanup = () => { el.removeEventListener('loadedmetadata', onMeta); el.removeEventListener('seeked', done); el.removeEventListener('error', done); clearTimeout(timer); };
     const onMeta = () => {
       if (t > 0.01) { el.addEventListener('seeked', done, { once: true }); el.currentTime = t; } else done();
     };
     const timer = setTimeout(done, 6000);
+    el.addEventListener('error', done, { once: true });       // a sound that can't load says so at once
     if (el.readyState >= 1) onMeta(); else el.addEventListener('loadedmetadata', onMeta, { once: true });
   });
 }

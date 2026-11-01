@@ -14,7 +14,7 @@ import { engine } from '../audio/engine.js';
 import { previewButton, onTopButton, queueButton, syncPreviewButtons } from '../audio/cue.js';
 import { playlists, REPEAT } from '../audio/playlists.js';
 import { SITE } from '../core/mode.js';
-import { newFolder, folderItems, soundItems, addButton, explainFailure, deleteFolder } from '../dialogs/files.js';
+import { newFolder, folderItems, soundItems, addButton, explainFailure, deleteFolder, accessNote } from '../dialogs/files.js';
 
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -117,6 +117,8 @@ export default function createPlaylists({ el, getState, setState }) {
     clear(editor);
     editor.append(h('button', { class: 'btn btn-sm pl-back', type: 'button', onclick: () => { narrowView = 'list'; layout(); } }, icon('back'), 'Playlists'));
     const pl = selected && playlists.get(selected);
+    const blocked = SITE && accessNote();
+    if (blocked) { editor.append(blocked); return; }
     if (!pl) {
       editor.append(h('div', { class: 'empty' },
         h('strong', null, 'Make a playlist for each kind of scene'),

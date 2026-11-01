@@ -1,13 +1,15 @@
 # DM Screen (CLAUDE.md)
 
 Password-gated ("Pleiades") DM screen for repo `blobberus/DMscreen`, in two versions from one `app/`:
-the **website** (GitHub Pages, https://blobberus.github.io/DMscreen/, sounds from the repo's `sounds/`)
+the **website** (GitHub Pages, https://blobberus.github.io/DMscreen/, sounds from the PRIVATE repo
+`blobberus/DMscreen-sounds`, clone at `../DMscreen-sounds`, read with each device's GitHub token)
 and the **PC version** (`server.py`, local library, YouTube downloads, Obsidian vault). Sister project of
 `blobberus/Stone-Wardens` (campaign site, framed in a pane; this app borrows its design tokens, type and
 markdown renderer) and `blobberus/Combat-Ring` (no longer shown: the user had it removed).
 
-**Adding, uploading or compressing sounds:** follow `ADDING_SOUNDS.md` step by step (folders, 25 MB /
-900 MB limits, `tools/shrink_sounds.py --in-place`, commit `sounds/` only, push, watch the Pages run).
+**Adding, uploading or compressing sounds:** follow `ADDING_SOUNDS.md` step by step (folders in the
+sounds repo, 25 MB / ~2 GB limits, `tools/shrink_sounds.py --in-place` works on `../DMscreen-sounds`,
+commit and push there a folder at a time, watch its "Index the sounds" run).
 The user shouldn't have to explain it. Keep the local clone current with `git pull --ff-only`
 (`sync.bat`; `start.bat` also pulls quietly) so renames made on the website reach it.
 
@@ -20,9 +22,11 @@ The user shouldn't have to explain it. Keep the local clone current with `git pu
   subprocesses, so `pip install -U yt-dlp` takes effect without a restart.
 - `data/` and `vault/` are user data and are gitignored. Never commit them. `_site/` and `.site-cache/`
   are build output.
-- The repo is public: everything in `sounds/` and `screen/` is public. Notes never go to the repo.
-- Sound sizes: GitHub's upload page takes files up to 25 MB and Pages stops at 1 GB for the whole site,
-  so keep `sounds/` under ~900 MB. Long ambience goes in as 20-minute, 128 kb/s cuts (~18 MB) made with
+- This repo is public: everything in it (`screen/` too) is public. Sounds never go in it (they moved to
+  the private `blobberus/DMscreen-sounds` on 2026-11-01; old copies remain in this repo's history).
+  Notes never go to the repo.
+- Sound sizes: GitHub's upload page takes files up to 25 MB, so that's the file limit; keep the sounds
+  repo under ~2 GB (pushes over ~150 MB at once timed out: push a folder at a time). Long ambience goes in as 20-minute, 128 kb/s cuts (~18 MB) made with
   `tools/shrink_sounds.py`. The user's originals (one-hour, 192 kb/s) stay on their Desktop.
 - Every feature must work in both versions or say plainly in the UI why it doesn't (`SITE` from
   `core/mode.js`). The PC server's login page loads `js/core/mode.js` and `gate.js` without a session.
@@ -57,10 +61,13 @@ app/js/dialogs/      settings.js shortcuts.js files.js (website: upload links, r
 app/sw.js            website offline copy (media/peaks cache-first with byte ranges; the rest network-first)
 app/js/core/         + mode.js (SITE, repo, IOS) gate.js (browser password check) github.js (REST,
                      commits) site.js (website data: library.json, setup, pending ops) vault.js zip.js
-sounds/              the website's sounds: Music/<playlist> Ambience/<ambience playlist> Effects/<bank>, README.md each
+../DMscreen-sounds/  the PRIVATE sounds repo: sounds/Music/<playlist> Ambience/<ambience playlist> Effects/<bank>
+                     (README.md each), library.json + peaks/<blob sha>.json (written by its .github/workflows/
+                     index.yml running tools/index_sounds.py, and by the site's commits)
 screen/setup.json    the website's synced setup (written by the site through the GitHub API)
 tools/build_site.py  builds _site/: app + media/<blob sha>.<ext> + peaks/<sha>.json + library.json
 tools/shrink_sounds.py  cuts long recordings to upload-sized MP3s (20 min from 30 s in, 128 kb/s)
+tools/index_sounds.py   the sounds repo's library.json + peaks/ (reuses build_site's reading)
 .github/workflows/pages.yml  build + deploy on push (ignores screen/**)
 ```
 
@@ -124,6 +131,18 @@ tools/shrink_sounds.py  cuts long recordings to upload-sized MP3s (20 min from 3
   load there. No separate web panes; `prune()` drops old `combat` / `web-N` tabs from stored layouts.
 
 ## Website contracts
+- Private sounds (`SOUNDS_REPO` from the build's `--sounds-repo` / meta dm-sounds-repo): `site.js` reads
+  the sounds repo's library.json through the API (`github.readRaw`; last copy in localStorage for offline);
+  media is `pmedia/<blob sha>.<ext>`, peaks `ppeaks/<sha>.json`, both answered by sw.js with the token the
+  page puts in IndexedDB ('dm' db, 'kv' store, key 'github' = {token, api, repo, branch}; `github.share()`
+  at boot, `setToken`/`forget`). The API sends a blob whole (`git/blobs/<sha>`, raw) and refuses Range
+  (its CORS preflight doesn't allow the header; raw.githubusercontent download_urls 403 the preflight
+  too), so sw.js streams: one download per sha, 206 answers for each range as the bytes arrive, the
+  finished file cached. boot waits for the worker to control the page (`workerReady`). `soundAccess()`:
+  ok / connect / denied / expired / indexing; anything but ok shows `accessNote()` and the playlists and
+  pads are NOT reconciled (an empty list would wipe the synced setup). File commits (`apply`) go to the
+  sounds repo and rewrite its library.json in the same commit (`editList`, read from the branch), so the
+  list never lags; setup.json saves separately through `sync()`.
 - Sound id = its path under `sounds/` ("Effects/Magic/Fireball.mp3"); media URL is by blob sha, so a
   rename never changes it. `groupOf(path)` = category + first folder = the playlist / pad bank id.
 - `playlists.reconcile()` and `board.reconcile()` rebuild playlists and banks from the folders on every
@@ -152,6 +171,9 @@ tools/shrink_sounds.py  cuts long recordings to upload-sized MP3s (20 min from 3
 ## Testing
 Run a throwaway server: `DMSCREEN_DATA=<scratch> DMSCREEN_PORT=7071 .venv/Scripts/python.exe server.py`
 and drive headless Chrome via the taste-skill CDP lib (log in with `fetch('/api/login')` first).
-Website: `python tools/build_site.py --out <scratch>/site --sounds <test sounds> --github-api <stand-in>
+Website (private sounds, as published): build with `--sounds-repo blobberus/DMscreen-sounds`, and run
+the stand-in with `--private-repo blobberus/DMscreen-sounds --private-sounds <a copy laid out like the
+sounds repo>` (it emulates the API's 404s, raw blobs without ranges, the preflight and the index workflow).
+Website (public sounds, the old way): `python tools/build_site.py --out <scratch>/site --sounds <test sounds> --github-api <stand-in>
 --github-raw <stand-in>/raw`, serve it with a byte-range static server, and point the GitHub metas at a
 local stand-in API (never a real token in tests).

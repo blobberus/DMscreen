@@ -16,7 +16,7 @@ import { playlists } from '../audio/playlists.js';
 import { createEditor } from './editor.js';
 import { SITE } from '../core/mode.js';
 import * as site from '../core/site.js';
-import { addSoundsMenu, addButton, folderItems, soundItems, folderLabel, deleteSound } from '../dialogs/files.js';
+import { addSoundsMenu, addButton, folderItems, soundItems, folderLabel, deleteSound, accessNote } from '../dialogs/files.js';
 
 const STATUS = {
   queued: 'Waiting', starting: 'Starting', downloading: 'Downloading', converting: 'Converting to MP3',
@@ -168,6 +168,8 @@ export default function createLibrary({ el, getState, setState, workspace }) {
   /** Website: the folders of each category, each with its sounds and an Add button. */
   function renderFolders() {
     clear(listEl);
+    const blocked = accessNote();
+    if (blocked) { listEl.append(blocked); return; }
     const term = search.value.trim().toLowerCase();
     const all = library.list();
     let shown = 0;

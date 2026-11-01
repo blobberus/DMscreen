@@ -1,13 +1,15 @@
 """Make long sounds small enough for the website.
 
-GitHub's upload page takes files up to 25 MB, and a GitHub Pages site stops at 1 GB, so a one-hour
-ambience download (about 80 MB at 192 kb/s) won't go in as it is. This cuts each long file to a
+GitHub's upload page takes files up to 25 MB, and a repo should stay within a couple of GB, so a
+one-hour ambience download (about 80 MB at 192 kb/s) won't go in as it is. This cuts each long file to a
 stretch (20 minutes from 30 s in, skipping a fade-in or intro) and re-encodes it as 128 kb/s stereo
 MP3: about 18 MB a file. Ambience loops on the screen, so 20 minutes is plenty. A sound shorter than
 that is only re-encoded, never cut.
 
-Shrink every oversized sound already in the repo's sounds/ folder, where it is (the usual way; the
-full-length originals are copied to "DM screen originals" on the Desktop first, outside the repo):
+Shrink every oversized sound already in the sounds folder, where it is (the usual way; the
+full-length originals are copied to "DM screen originals" on the Desktop first, outside the repo). The
+sounds folder is the private sounds repo's (a DMscreen-sounds clone beside this one), or this repo's
+sounds/ if there is no such clone:
 
     .venv\\Scripts\\python tools\\shrink_sounds.py --in-place          (Windows)
     python3 tools/shrink_sounds.py --in-place                        (macOS / Linux)
@@ -29,7 +31,8 @@ from pathlib import Path
 
 AUDIO = {'.mp3', '.m4a', '.wav', '.flac', '.ogg', '.opus', '.webm', '.aac'}
 REPO = Path(__file__).resolve().parent.parent
-SOUNDS = REPO / 'sounds'
+# the sounds are in the private repo blobberus/DMscreen-sounds now: its clone sits beside this one
+SOUNDS = next((p for p in (REPO.parent / 'DMscreen-sounds' / 'sounds', REPO / 'sounds') if p.is_dir()), REPO / 'sounds')
 
 
 def find_ffmpeg():
@@ -81,7 +84,7 @@ def main():
     files = []                                    # (source, relative path for naming)
     roots = [Path(p) for p in args.inputs] or ([SOUNDS] if args.in_place else [])
     if not roots:
-        sys.exit('Name the files or folders to shrink, or use --in-place for the repo\'s sounds/.')
+        sys.exit(f'Name the files or folders to shrink, or use --in-place for {SOUNDS}.')
     for root in roots:
         if root.is_dir():
             base = root if args.in_place else root.parent
@@ -134,7 +137,7 @@ def main():
             print(line, flush=True)
     if args.in_place:
         total = sum(f.stat().st_size for f in SOUNDS.rglob('*') if f.is_file())
-        print(f'sounds/ is {total / 2 ** 20:.0f} MB in all (keep it under about 900 MB: GitHub Pages stops at 1 GB).')
+        print(f'{SOUNDS} is {total / 2 ** 20:.0f} MB in all (keep the repo under about 2 GB).')
 
 
 if __name__ == '__main__':

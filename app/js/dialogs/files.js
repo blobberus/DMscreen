@@ -5,7 +5,7 @@
 import { h, icon } from '../core/dom.js';
 import { library } from '../core/library.js';
 import * as site from '../core/site.js';
-import { SITE } from '../core/mode.js';
+import { SITE, SOUNDS_REPO } from '../core/mode.js';
 import { openDialog, promptDialog, confirmDialog, showMenu, toast } from '../core/ui.js';
 import { openSettings } from './settings.js';
 import { volumeDialog } from './volume.js';
@@ -41,6 +41,27 @@ export function addSoundsMenu(anchor, { kind = null } = {}) {
   }
   items.push({ sep: true }, { label: 'How adding sounds works', icon: 'help', onClick: () => window.open(site.links.howTo, '_blank', 'noopener') });
   showMenu(anchor, items, { minWidth: 230 });
+}
+
+/** Why this device can't play the private sounds, or null when it can. */
+export function accessText() {
+  const repo = SOUNDS_REPO.split('/').pop();
+  return {
+    connect: 'The sounds are in a private GitHub repo, so this device needs to be connected to GitHub to play them (Settings, GitHub).',
+    denied: `This device’s GitHub token can’t read ${repo}, where the sounds are. On GitHub, add ${repo} to the token’s repositories (Settings, GitHub says how).`,
+    expired: 'GitHub turned down this device’s token (it may have expired), so the sounds can’t load. Connect again in Settings, GitHub.',
+    indexing: `GitHub hasn’t listed the sounds in ${repo} yet (its Index the sounds workflow does that). Give it a minute and reload.`,
+  }[site.soundAccess()] || null;
+}
+
+/** The same, as an empty state with the way to Settings (Sound library, Playlists). */
+export function accessNote() {
+  const text = accessText();
+  if (!text) return null;
+  return h('div', { class: 'empty' },
+    h('strong', null, 'The sounds can’t load on this device yet'),
+    h('span', null, text),
+    h('div', { class: 'row' }, h('button', { class: 'btn btn-primary', type: 'button', onclick: () => openSettings('github') }, 'Settings, GitHub')));
 }
 
 /** A commit failed. Not connected: say why and offer the way. Anything else: say what GitHub said. */

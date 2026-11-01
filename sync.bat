@@ -25,4 +25,8 @@ git merge --ff-only --quiet origin/main || (
 )
 for /f %%c in ('git rev-parse --short HEAD') do set HEAD=%%c
 echo Up to date with GitHub (%HEAD%).
+rem The sounds are in the private repo DMscreen-sounds: its copy beside this one comes up to date too.
+if exist "..\DMscreen-sounds\.git" (
+  git -C "..\DMscreen-sounds" pull --ff-only --quiet && echo The sounds copy ^(DMscreen-sounds^) is up to date too. || echo The sounds copy ^(DMscreen-sounds^) could not be brought up to date: ask Claude to look at it.
+)
 if /i not "%~1"=="--quiet" pause

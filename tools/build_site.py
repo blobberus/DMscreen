@@ -165,6 +165,8 @@ def main():
     ap.add_argument('--sounds', default=str(ROOT / 'sounds'), help='the folder of sounds (tests point this elsewhere)')
     ap.add_argument('--repo', default=os.environ.get('GITHUB_REPOSITORY', 'blobberus/DMscreen'))
     ap.add_argument('--branch', default=os.environ.get('GITHUB_REF_NAME', 'main'))
+    ap.add_argument('--sounds-repo', default='', help='the private repo the sounds are kept in (owner/name): the site reads them '
+                    'through the GitHub API with each device token, and sounds/ here (if any) is not published')
     for name in ('api', 'raw', 'web'):
         ap.add_argument(f'--github-{name}', help=f'a stand-in for GitHub ({name}) when testing')
     args = ap.parse_args()
@@ -174,6 +176,8 @@ def main():
         shutil.rmtree(out, ignore_errors=True)     # a file still open elsewhere (Windows) just gets overwritten
     shutil.copytree(ROOT / 'app', out, dirs_exist_ok=True)
     marks = {'dm-mode': 'site', 'dm-repo': args.repo, 'dm-branch': args.branch}
+    if args.sounds_repo:
+        marks['dm-sounds-repo'] = args.sounds_repo
     for name in ('api', 'raw', 'web'):
         if getattr(args, f'github_{name}'):
             marks[f'dm-github-{name}'] = getattr(args, f'github_{name}')
@@ -188,9 +192,9 @@ def main():
     (out / 'peaks').mkdir(exist_ok=True)
     cache.mkdir(parents=True, exist_ok=True)
 
-    known = git_shas(sounds)
+    known = git_shas(sounds) if sounds.is_dir() and not args.sounds_repo else {}
     folders, files, total, fresh = [], [], 0, 0
-    for dirpath, dirnames, filenames in os.walk(sounds):
+    for dirpath, dirnames, filenames in (os.walk(sounds) if not args.sounds_repo else ()):
         dirnames[:] = sorted(d for d in dirnames if not d.startswith('.'))
         d = Path(dirpath)
         if d != sounds:
@@ -230,6 +234,9 @@ def main():
     (out / 'library.json').write_text(json.dumps(library, indent=1), 'utf-8')
     if total > PAGES_SITE_LIMIT * 0.9:
         print(f'warning: {total / 1024 ** 2:.0f} MB of sounds; GitHub Pages sites stop at 1 GB', file=sys.stderr)
+    if args.sounds_repo:
+        print(f'sounds from the private repo {args.sounds_repo} (read live by the site) -> {out}')
+        return
     print(f'{len(files)} sounds ({total / 1024 ** 2:.1f} MB, {fresh} newly read) in {len(folders)} folders -> {out}')
 
 

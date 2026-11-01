@@ -2,7 +2,8 @@
 // mount the workspace and wire the keyboard. On the website the gate, the sound list and the setup
 // come first (see core/site.js).
 import { h, icon, setIcon } from './core/dom.js';
-import { SITE } from './core/mode.js';
+import { SITE, SOUNDS_REPO } from './core/mode.js';
+import { github } from './core/github.js';
 import { gate } from './core/gate.js';
 import * as site from './core/site.js';
 import { state } from './core/state.js';
@@ -18,6 +19,7 @@ import { workspace, layoutIcon } from './layout/workspace.js';
 import { buildRail } from './layout/rail.js';
 import { openSettings } from './dialogs/settings.js';
 import { openShortcuts } from './dialogs/shortcuts.js';
+import { accessText } from './dialogs/files.js';
 import { startPlaylistKey, playlists } from './audio/playlists.js';
 
 function applyTheme(theme) {
@@ -258,6 +260,13 @@ function siteNotices() {
     const names = added.map((id) => library.get(id)?.name).filter(Boolean);
     toast(names.length === 1 ? `“${names[0]}” is on the screen now.` : `${names.length} new sounds are on the screen now.`, { type: 'ok' });
   });
+  const access = () => {
+    const note = accessText();
+    if (note) toast(note, { type: 'error', timeout: 15000, action: { label: 'Settings', run: () => openSettings('github') } });
+  };
+  access();
+  let lastAccess = site.soundAccess();
+  bus.on('site:library', () => { if (site.soundAccess() !== lastAccess) { lastAccess = site.soundAccess(); access(); } });
   bus.on('site:publish', (p) => {
     if (p.state === 'failed') toast('GitHub couldn’t publish the latest change.', { type: 'error', timeout: 9000, action: { label: 'See why', run: () => window.open(p.run?.html_url || site.links.actions, '_blank', 'noopener') } });
   });
@@ -278,12 +287,28 @@ function guardDrops() {
   window.addEventListener('drop', (e) => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault(); });
 }
 
+// Private sounds play through the offline worker (it adds the token), so it must be looking after this
+// page before anything plays: on the very first visit it takes over a moment after it installs.
+async function workerReady() {
+  if (!('serviceWorker' in navigator)) return false;
+  if (navigator.serviceWorker.controller) return true;
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+  return new Promise((resolve) => {
+    const t = setTimeout(() => resolve(!!navigator.serviceWorker.controller), 10000);
+    navigator.serviceWorker.addEventListener('controllerchange', () => { clearTimeout(t); resolve(true); }, { once: true });
+  });
+}
+
 async function boot() {
   if (SITE && !gate.unlocked()) { location.replace('login.html'); return; }
   guardDrops();
   longPress();
   try {
     if (SITE) {
+      if (SOUNDS_REPO) {
+        github.share();
+        if (!(await workerReady())) toast('This browser can’t play the private sounds: it has no offline worker. Use Safari or Chrome, not a private window.', { type: 'error', timeout: 20000 });
+      }
       await site.load();
       await state.load();
       await library.load();

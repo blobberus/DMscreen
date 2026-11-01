@@ -8,7 +8,7 @@ import { uid } from '../core/util.js';
 import { engine } from './engine.js';
 import { library } from '../core/library.js';
 import { SITE } from '../core/mode.js';
-import { folderName } from '../core/site.js';
+import { folderName, soundAccess } from '../core/site.js';
 
 // Rows as on a real keyboard; offsets are in quarter-keys from the "1" key.
 export const ROWS = [
@@ -49,7 +49,8 @@ export const board = {
   banks() { return this.doc().banks; },
   active() {
     const d = this.doc();
-    return d.banks.find((b) => b.id === d.active) || d.banks[0];
+    // no bank at all: a device that can't read the private sounds yet, before any setup reached it
+    return d.banks.find((b) => b.id === d.active) || d.banks[0] || NO_BANK;
   },
   setActive(id) {
     state.update('boards', (d) => { d.active = id; });
@@ -111,7 +112,8 @@ export const board = {
    * once placed it is remembered (seen), so clearing or moving its pad sticks.
    */
   reconcile() {
-    if (!SITE) return;
+    // a device that can't read the private sounds sees none: rebuilding from that would wipe the setup
+    if (!SITE || soundAccess() !== 'ok') return;
     const before = JSON.stringify(this.doc());
     const groups = library.groups('effect');
     const sounds = library.list();
@@ -153,6 +155,8 @@ keys.on('effects.stop', () => engine.stopEffects());
 
 bus.on('library', () => board.reconcile());
 bus.on('site:docs', () => board.reconcile());
+
+const NO_BANK = { id: 'Effects', name: 'Effects', pads: {} };
 
 // Forget pads whose sound was deleted.
 bus.on('library:removed', (id) => {

@@ -2,7 +2,7 @@
 // The website swaps the PC-only areas (YouTube downloads, the vault folder) for GitHub, this device's
 // offline copy, and notes kept in the browser.
 import { h, icon, clear } from '../core/dom.js';
-import { SITE, REPO, IOS } from '../core/mode.js';
+import { SITE, REPO, IOS, SOUNDS_REPO } from '../core/mode.js';
 import { gate } from '../core/gate.js';
 import { github } from '../core/github.js';
 import * as site from '../core/site.js';
@@ -260,7 +260,12 @@ function notes(view, saved) {
 }
 
 // ---- GitHub (website) -------------------------------------------------------------------------
-const TOKEN_PAGE = 'https://github.com/settings/personal-access-tokens/new?name=DM%20Screen&description=Lets%20the%20DM%20Screen%20rename%20sounds%20and%20save%20its%20setup&target_name=blobberus&expires_in=365&contents=write';
+const TOKEN_PAGE = 'https://github.com/settings/personal-access-tokens/new?name=DM%20Screen&description=Lets%20the%20DM%20Screen%20play%20and%20rename%20sounds%20and%20save%20its%20setup&target_name=blobberus&expires_in=365&contents=write';
+const TOKENS_PAGE = 'https://github.com/settings/personal-access-tokens';
+const SOUNDS_NAME = SOUNDS_REPO.split('/').pop();
+const REPO_NAME = REPO.split('/').pop();
+/** The repositories a token needs, for the steps. */
+const REPOS = SOUNDS_REPO ? `${REPO_NAME} and ${SOUNDS_NAME}` : REPO_NAME;
 
 function when(ms) {
   const s = Math.round((Date.now() - ms) / 1000);
@@ -276,24 +281,46 @@ function githubView(view, saved) {
     h('a', { class: 'btn btn-ghost', href: site.links.howTo, target: '_blank', rel: 'noopener' }, icon('help'), 'How adding sounds works'));
   const connectBox = h('div', { class: 'st-panel' });
   view.append(
-    section('Sounds on GitHub', `The screen plays the audio files in ${REPO}/sounds. Each folder in Music is a playlist, in Ambience an ambience playlist, in Effects a bank of pads.`,
-      folders,
-      h('p', { class: 'field-hint' }, `${library.list().length} sounds published${pub.built ? `, last ${when(pub.built * 1000)}` : ''}. A new upload takes about a minute to appear.`)),
-    section('Connect this device', 'Once per device. It lets the screen rename and move sounds, make folders, and keep flags, pads and playlist keys the same on every device. Without it everything still plays, and changes stay on this device.', connectBox),
+    SOUNDS_REPO
+      ? section('Sounds on GitHub', `The screen plays the audio files in ${SOUNDS_REPO}/sounds, a private repo: only you can play or download them, and each device reads them with its own GitHub connection. Each folder in Music is a playlist, in Ambience an ambience playlist, in Effects a bank of pads.`,
+        folders,
+        h('p', { class: 'field-hint' }, site.soundAccess() === 'ok' ? `${library.list().length} sounds${pub.built ? `, listed ${when(pub.built * 1000)}` : ''}. A new upload takes about a minute to appear.` : 'This device can’t read them yet: see below.'))
+      : section('Sounds on GitHub', `The screen plays the audio files in ${REPO}/sounds. Each folder in Music is a playlist, in Ambience an ambience playlist, in Effects a bank of pads.`,
+        folders,
+        h('p', { class: 'field-hint' }, `${library.list().length} sounds published${pub.built ? `, last ${when(pub.built * 1000)}` : ''}. A new upload takes about a minute to appear.`)),
+    section('Connect this device', SOUNDS_REPO
+      ? 'Once per device. The sounds are private, so this is what lets a device play them. It also lets the screen rename, move and delete sounds, make folders, and keep flags, pads and playlist keys the same on every device.'
+      : 'Once per device. It lets the screen rename and move sounds, make folders, and keep flags, pads and playlist keys the same on every device. Without it everything still plays, and changes stay on this device.', connectBox),
   );
   const draw = () => {
     clear(connectBox);
     if (github.connected()) {
       const info = site.syncInfo();
       const line = info.error ? `Couldn't save: ${info.error}` : info.syncing ? 'Saving the setup…' : info.dirty ? 'Changes waiting to be saved.' : info.savedAt ? `Setup saved to GitHub ${when(info.savedAt)}.` : 'Setup up to date.';
+      const access = site.soundAccess();
+      const check = h('button', { class: 'btn', type: 'button', onclick: async () => {
+        check.disabled = true;
+        await site.refresh();
+        draw();
+        toast(site.soundAccess() === 'ok' ? `The sounds are here: ${library.list().length} of them.` : 'Still no access to the sounds.', { type: site.soundAccess() === 'ok' ? 'ok' : 'error' });
+      } }, icon('refresh'), 'Check again');
       connectBox.append(
         h('p', { class: 'st-helperstate is-on' }, icon('check', 'icon-sm'), `Connected to ${REPO}.`),
+        access === 'denied' ? h('div', { class: 'st-result is-error' },
+          h('p', null, `This token can’t read ${SOUNDS_REPO}, so the sounds don’t load on this device. On GitHub: `,
+            h('a', { href: TOKENS_PAGE, target: '_blank', rel: 'noopener' }, 'open your fine-grained tokens'),
+            `, choose the DM Screen token, Edit, and under Repository access add ${SOUNDS_NAME} (Contents: Read and write covers both). Save, then press Check again.`),
+          h('div', { class: 'st-actions' }, check)) : null,
+        access === 'expired' ? h('p', { class: 'st-result is-error' }, 'GitHub turned this token down (it may have expired). Disconnect and connect with a new one.') : null,
         h('p', { class: `st-result ${info.error ? 'is-error' : ''}` }, line),
         h('div', { class: 'st-actions' },
           h('button', { class: 'btn', type: 'button', disabled: !info.dirty, onclick: async () => { await site.sync(); draw(); } }, icon('refresh'), 'Save now'),
           h('button', { class: 'btn btn-ghost', type: 'button', onclick: async () => {
-            if (!(await confirmDialog('Disconnect this device? Renaming and moving sounds stop working here until you connect again. To cancel the token everywhere, delete it on GitHub too.', { okLabel: 'Disconnect' }))) return;
+            if (!(await confirmDialog(SOUNDS_REPO
+              ? 'Disconnect this device? The sounds stop loading here (ones it kept still play), and renames stop working, until you connect again. To cancel the token everywhere, delete it on GitHub too.'
+              : 'Disconnect this device? Renaming and moving sounds stop working here until you connect again. To cancel the token everywhere, delete it on GitHub too.', { okLabel: 'Disconnect' }))) return;
             github.forget();
+            if (SOUNDS_REPO) await site.refresh();
             draw();
           } }, 'Disconnect')),
         h('p', { class: 'field-hint' }, 'The token is kept only in this browser on this device.'));
@@ -312,12 +339,14 @@ function githubView(view, saved) {
         if (r.canPush === false) throw new Error(`Your GitHub account can't change ${REPO}.`);
         github.setToken(token);
         saved();
-        toast(`Connected${r.login ? ` as ${r.login}` : ''}. Renames and your setup now go to GitHub.`, { type: 'ok' });
+        if (r.sounds === false) toast(`Connected${r.login ? ` as ${r.login}` : ''}, but this token can’t read ${SOUNDS_NAME}, so the sounds won’t load. Add ${SOUNDS_NAME} to the token on GitHub (the steps are in Settings, GitHub).`, { type: 'error', timeout: 15000 });
+        else toast(`Connected${r.login ? ` as ${r.login}` : ''}. ${SOUNDS_REPO ? 'The sounds load here now, and renames' : 'Renames'} and your setup go to GitHub.`, { type: 'ok' });
         site.sync();
+        if (SOUNDS_REPO) await site.refresh();
         draw();
       } catch (e) {
         result.className = 'st-result is-error';
-        result.textContent = e.status === 401 ? "GitHub didn't accept that token. Copy it again from GitHub." : e.status === 404 ? `That token can't see ${REPO}. Under Repository access, choose Only select repositories and pick DMscreen.` : e.message;
+        result.textContent = e.status === 401 ? "GitHub didn't accept that token. Copy it again from GitHub." : e.status === 404 ? `That token can't see ${REPO}. Under Repository access, choose Only select repositories and pick ${REPOS}.` : e.message;
         connect.disabled = false;
       }
     } }, 'Connect');
@@ -325,12 +354,12 @@ function githubView(view, saved) {
     connectBox.append(
       h('ol', { class: 'st-steps' },
         h('li', null, h('a', { href: TOKEN_PAGE, target: '_blank', rel: 'noopener' }, 'Open GitHub’s new token page'), ' (sign in if it asks).'),
-        h('li', null, 'Name it DM Screen. Under Repository access choose Only select repositories, then DMscreen.'),
+        h('li', null, `Name it DM Screen. Under Repository access choose Only select repositories, then ${REPOS}.`),
         h('li', null, 'Under Permissions, Repository, set Contents to Read and write.'),
         h('li', null, 'Press Generate token, copy it, and paste it here.')),
       h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Token'), input),
       h('div', { class: 'st-actions' }, connect), result,
-      h('p', { class: 'field-hint' }, 'The token can only change the files of this one repository. It is kept only in this browser; Disconnect removes it, and deleting it on GitHub cancels it everywhere.'));
+      h('p', { class: 'field-hint' }, `The token can only reach ${SOUNDS_REPO ? 'these two repositories' : 'this one repository'}. It is kept only in this browser; Disconnect removes it, and deleting it on GitHub cancels it everywhere.`));
   };
   draw();
 }

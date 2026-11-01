@@ -1,5 +1,7 @@
-# Publishes the DM Screen website to GitHub Pages whenever sounds or the app change.
-# screen/setup.json (flags, pads, keys) is read live by the site, so saving it doesn't rebuild.
+# Publishes the DM Screen website to GitHub Pages whenever the app changes.
+# The sounds are in the private repo blobberus/DMscreen-sounds, read live by the site with each device's
+# token (not published here), and screen/setup.json (flags, pads, keys) is read live too, so saving it
+# doesn't rebuild.
 name: Publish the DM screen
 
 on:
@@ -32,7 +34,7 @@ jobs:
           path: .site-cache
           key: waveforms-${{ github.run_id }}
           restore-keys: waveforms-
-      - run: python tools/build_site.py --out _site --cache .site-cache
+      - run: python tools/build_site.py --out _site --cache .site-cache --sounds-repo blobberus/DMscreen-sounds
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

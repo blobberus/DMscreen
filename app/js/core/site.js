@@ -8,9 +8,13 @@
 //   seconds later. Layouts and settings belong to each device and stay in it.
 // - renames, moves, new folders and deletions (of sounds and whole folders) are commits. GitHub needs a minute to publish them, so
 //   until library.json catches up they are applied here from a pending list.
+// - With a sounds repo (SOUNDS_REPO, private), the sounds are that repo's sounds/ instead: its own
+//   library.json and peaks/ (written by its "Index the sounds" workflow) are read through the API with
+//   this device's token, the offline worker (sw.js) fetches each sound by its blob id with the same
+//   token, and the commits above go to that repo, rewriting its library.json as they go.
 import { bus } from './bus.js';
 import { github, blobSha } from './github.js';
-import { REPO, BRANCH, GITHUB_WEB } from './mode.js';
+import { REPO, BRANCH, GITHUB_WEB, SOUNDS_REPO } from './mode.js';
 import { natural } from './util.js';
 
 export const SOUNDS = 'sounds';
@@ -27,6 +31,10 @@ const SYNCED_DOCS = ['playlists', 'boards', 'keymap', 'bookmarks', 'merchants'];
 const META_FIELDS = ['trimStart', 'trimEnd', 'flags', 'repeat', 'volume', 'fadeIn', 'fadeOut', 'loopFade', 'tags'];
 const SETUP_KEY = 'dm:setup';
 const PENDING_KEY = 'dm:pending';
+const PRIVATE = !!SOUNDS_REPO;
+const STORE = SOUNDS_REPO || REPO;           // the repo the sound files are in
+const LIST_PATH = 'library.json';             // the sounds repo's own sound list
+const LIST_KEY = 'dm:sound-list';             // its last copy, for opening the screen offline
 
 // ---- names and paths -------------------------------------------------------------------
 export const dirOf = (p) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
@@ -64,13 +72,13 @@ export function cleanName(text) {
 // ---- links into the repo -----------------------------------------------------------------
 const enc = (p) => p.split('/').map(encodeURIComponent).join('/');
 export const links = {
-  repo: `${GITHUB_WEB}/${REPO}`,
-  folder: (dir) => `${GITHUB_WEB}/${REPO}/tree/${BRANCH}/${enc(dir ? `${SOUNDS}/${dir}` : SOUNDS)}`,
-  upload: (dir) => `${GITHUB_WEB}/${REPO}/upload/${BRANCH}/${enc(dir ? `${SOUNDS}/${dir}` : SOUNDS)}`,
-  file: (path) => `${GITHUB_WEB}/${REPO}/blob/${BRANCH}/${enc(`${SOUNDS}/${path}`)}`,
-  newFolder: (parent, name) => `${GITHUB_WEB}/${REPO}/new/${BRANCH}/${enc(parent ? `${SOUNDS}/${parent}` : SOUNDS)}?filename=${encodeURIComponent(`${name}/README.md`)}&value=${encodeURIComponent(folderReadme(joinPath(parent, name)))}`,
-  howTo: `${GITHUB_WEB}/${REPO}/blob/${BRANCH}/${SOUNDS}/README.md`,
-  actions: `${GITHUB_WEB}/${REPO}/actions`,
+  repo: `${GITHUB_WEB}/${STORE}`,
+  folder: (dir) => `${GITHUB_WEB}/${STORE}/tree/${BRANCH}/${enc(dir ? `${SOUNDS}/${dir}` : SOUNDS)}`,
+  upload: (dir) => `${GITHUB_WEB}/${STORE}/upload/${BRANCH}/${enc(dir ? `${SOUNDS}/${dir}` : SOUNDS)}`,
+  file: (path) => `${GITHUB_WEB}/${STORE}/blob/${BRANCH}/${enc(`${SOUNDS}/${path}`)}`,
+  newFolder: (parent, name) => `${GITHUB_WEB}/${STORE}/new/${BRANCH}/${enc(parent ? `${SOUNDS}/${parent}` : SOUNDS)}?filename=${encodeURIComponent(`${name}/README.md`)}&value=${encodeURIComponent(folderReadme(joinPath(parent, name)))}`,
+  howTo: PRIVATE ? `${GITHUB_WEB}/${STORE}#readme` : `${GITHUB_WEB}/${STORE}/blob/${BRANCH}/${SOUNDS}/README.md`,
+  actions: `${GITHUB_WEB}/${STORE}/actions`,
 };
 
 /** The note GitHub shows when you open a folder: what it is on the screen and how to add to it. */
@@ -100,12 +108,42 @@ function writeJSON(key, value) {
 // ---- the library ------------------------------------------------------------------------------
 let manifest = { commit: null, built: 0, files: [], folders: [] };
 let view = { files: [], folders: [] };
+let access = 'ok';
+
+/** Can this device play the sounds? 'ok'; with private sounds also 'connect' (not connected to GitHub),
+ *  'denied' (its token can't read the sounds repo), 'expired' (GitHub turned the token down) or
+ *  'indexing' (the repo has no library.json yet). */
+export const soundAccess = () => access;
+
+const listOf = (data) => ({ commit: data.commit || null, built: data.built || 0, files: data.files || [], folders: data.folders || [] });
 
 async function fetchManifest() {
+  if (PRIVATE) return fetchPrivateList();
   const res = await fetch('library.json', { cache: 'no-store' });
   if (!res.ok) throw new Error(`The sound list didn't load (${res.status}).`);
-  const data = await res.json();
-  return { commit: data.commit || null, built: data.built || 0, files: data.files || [], folders: data.folders || [] };
+  return listOf(await res.json());
+}
+
+/** The sounds repo's library.json. Its sounds and waveforms are fetched by blob id through the offline
+ *  worker (pmedia/, ppeaks/), which adds this device's token. */
+async function fetchPrivateList() {
+  if (!github.connected()) { access = 'connect'; return listOf({}); }
+  let data;
+  try {
+    const text = await github.readRaw(LIST_PATH, { repo: SOUNDS_REPO });
+    if (!text) { access = 'indexing'; return listOf({}); }     // its workflow hasn't listed the sounds yet
+    data = JSON.parse(text);
+    writeJSON(LIST_KEY, data);
+  } catch (e) {
+    if (e.status === 401) { access = 'expired'; return listOf({}); }
+    if (e.status === 403 || e.status === 404) { access = 'denied'; return listOf({}); }
+    data = readJSON(LIST_KEY);                 // no network: the list this device saw last
+    if (!data) throw e;
+  }
+  access = 'ok';
+  const list = listOf(data);
+  list.files = list.files.map((f) => ({ ...f, media: `pmedia/${f.sha}${extOf(f.path).toLowerCase()}`, peaks: f.peaks ? `ppeaks/${f.sha}.json` : undefined }));
+  return list;
 }
 
 function pending() { return readJSON(PENDING_KEY) || []; }
@@ -129,6 +167,28 @@ function withParents(set, dir) {
   for (let i = 1; i <= seg.length; i++) if (seg[i - 1]) set.add(seg.slice(0, i).join('/'));
 }
 
+/** A sound list with one change applied: a pending change, or the change a commit makes. */
+function editList(list, op) {
+  let files = list.files.map((f) => ({ ...f }));
+  const folders = new Set(list.folders);
+  if (op.op === 'move') {
+    const f = files.find((x) => x.path === op.from);
+    if (f) f.path = op.to;
+    withParents(folders, dirOf(op.to));
+  } else if (op.op === 'delete') {
+    files = files.filter((x) => x.path !== op.path);
+  } else if (op.op === 'rmdir') {
+    files = files.filter((x) => !under(x.path, op.path));
+    for (const d of [...folders]) if (under(d, op.path)) folders.delete(d);
+  } else if (op.op === 'mkdir') {
+    withParents(folders, op.path);
+  } else if (op.op === 'movedir') {
+    for (const f of files) f.path = moveUnder(f.path, op.from, op.to);
+    for (const d of [...folders]) if (under(d, op.from)) { folders.delete(d); folders.add(moveUnder(d, op.from, op.to)); }
+  }
+  return { ...list, files, folders: [...folders] };
+}
+
 /** The published list with our own unpublished changes on top. Drops changes that have landed. */
 function settle(raw) {
   const has = new Set(raw.files.map((f) => f.path));
@@ -142,27 +202,9 @@ function settle(raw) {
   }[op.op]?.() ?? true);
   const left = pending().filter((op) => Date.now() - op.at < 3600e3 && !landed(op));
   writeJSON(PENDING_KEY, left);
-  let files = raw.files.map((f) => ({ ...f }));
-  const folders = new Set(raw.folders);
-  for (const op of left) {
-    if (op.op === 'move') {
-      const f = files.find((x) => x.path === op.from);
-      if (f) f.path = op.to;
-      withParents(folders, dirOf(op.to));
-    } else if (op.op === 'delete') {
-      files = files.filter((x) => x.path !== op.path);
-    } else if (op.op === 'rmdir') {
-      files = files.filter((x) => !under(x.path, op.path));
-      for (const d of [...folders]) if (under(d, op.path)) folders.delete(d);
-    } else if (op.op === 'mkdir') {
-      withParents(folders, op.path);
-    } else if (op.op === 'movedir') {
-      for (const f of files) f.path = moveUnder(f.path, op.from, op.to);
-      for (const d of [...folders]) if (under(d, op.from)) { folders.delete(d); folders.add(moveUnder(d, op.from, op.to)); }
-    }
-  }
-  files.sort((a, b) => natural(a.path, b.path));
-  return { files, folders: [...folders].sort(natural) };
+  let list = { files: raw.files, folders: raw.folders };
+  for (const op of left) list = editList(list, op);
+  return { files: list.files.map((f) => ({ ...f })).sort((a, b) => natural(a.path, b.path)), folders: [...list.folders].sort(natural) };
 }
 
 function toSound(f) {
@@ -386,13 +428,15 @@ async function refreshSetup() {
 /** Look for a newer published sound list (after an upload, or coming back to the tab). */
 export async function refresh() {
   let raw;
+  const was = access;
   try { raw = await fetchManifest(); } catch { return { changed: false, added: [] }; }
   const before = new Set(view.files.map((f) => f.sha));     // by content: a moved sound isn't a new one
   const prev = view;
   manifest = raw;
   view = settle(raw);
-  const added = view.files.filter((f) => !before.has(f.sha)).map((f) => f.path);
-  const changedNow = !same(prev, view);
+  // sounds that appear because this device just got access aren't news
+  const added = was === access ? view.files.filter((f) => !before.has(f.sha)).map((f) => f.path) : [];
+  const changedNow = !same(prev, view) || was !== access;
   if (changedNow) bus.emit('site:library', { added });
   return { changed: changedNow, added };
 }
@@ -425,7 +469,7 @@ let watchReason = 'commit';
 async function poll() {
   clearTimeout(watchTimer);
   const { added } = await refresh();
-  const run = github.connected() ? await github.latestRun().catch(() => null) : null;
+  const run = github.connected() ? await github.latestRun({ repo: STORE }).catch(() => null) : null;
   const busy = !!run && run.status !== 'completed';
   const done = !busy && (watchReason === 'upload' ? added.length > 0 : !pending().length);
   const failed = !busy && run?.conclusion === 'failure' && Date.parse(run.created_at) > (manifest.built || 0) * 1000;
@@ -502,6 +546,44 @@ async function committed(doc, text) {
   watch();
 }
 
+/** Pending list for a change made by a commit (a deletion turns earlier changes into deletions). */
+function pend(op) {
+  if (op.op === 'delete' || op.op === 'rmdir') addDeletion(op); else addPending(op);
+}
+
+/**
+ * Change the sound files, in one commit. files: [{path, sha}] as github.commit takes them (or a function
+ * of listTree); op: the same change as a pending-list entry; doc: the setup with its references changed
+ * (or null). Public sounds: the setup goes in the same commit, and the change waits in the pending list
+ * until the site is published. Private sounds: the commit in the sounds repo also rewrites its
+ * library.json (read from the branch), so the list never lags; the setup saves to this repo on its own.
+ */
+async function apply(message, files, op, doc) {
+  const listed = (listTree) => (typeof files === 'function' ? files(listTree) : files);
+  if (PRIVATE) {
+    await github.commit(message, async (listTree) => {
+      const changes = await listed(listTree);
+      const entry = (await listTree()).find((e) => e.path === LIST_PATH);
+      const data = entry ? JSON.parse(await github.blobText(entry.sha, { repo: SOUNDS_REPO })) : { version: 1 };
+      const next = editList({ ...data, files: data.files || [], folders: data.folders || [] }, op);
+      next.folders.sort();                 // as the index script sorts them
+      return [...changes, { path: LIST_PATH, content: `${JSON.stringify(next, null, 1)}\n` }];
+    }, { repo: SOUNDS_REPO });
+    pend(op);
+    if (doc) { setup.doc = doc; changed(); sync(); }
+    manifest = await fetchManifest().catch(() => manifest);
+    view = settle(manifest);
+    bus.emit('site:docs', loadDocs());
+    return;
+  }
+  const text = doc ? setupText(doc) : null;
+  await github.commit(message, async (listTree) => [...await listed(listTree), ...(doc ? [{ path: SETUP_PATH, content: text }] : [])]);
+  pend(op);
+  if (doc) { await committed(doc, text); return; }
+  view = settle(manifest);
+  watch();
+}
+
 const taken = (path, except) => view.files.some((f) => f.path !== except && f.path.toLowerCase() === path.toLowerCase());
 
 async function moveFile(from, to, message) {
@@ -514,14 +596,10 @@ async function moveFile(from, to, message) {
   if (groupOf(from) !== groupOf(to)) leaveGroup(doc, to, groupOf(from));
   const oldName = soundName(from);
   for (const b of doc.boards?.banks || []) for (const p of Object.values(b.pads || {})) if (p?.sound === to && p.label === oldName) delete p.label;
-  const text = setupText(doc);
-  await github.commit(message, [
+  await apply(message, [
     { path: `${SOUNDS}/${to}`, sha: f.sha },
     { path: `${SOUNDS}/${from}`, sha: null },
-    { path: SETUP_PATH, content: text },
-  ]);
-  addPending({ op: 'move', from, to });
-  await committed(doc, text);
+  ], { op: 'move', from, to }, doc);
   return { from, to };
 }
 
@@ -544,10 +622,7 @@ export async function deleteSound(id) {
   needGitHub();
   const doc = normal(clone(setup.doc));
   forget(doc, id);
-  const text = setupText(doc);
-  await github.commit(`Delete ${baseOf(id)}`, [{ path: `${SOUNDS}/${id}`, sha: null }, { path: SETUP_PATH, content: text }]);
-  addDeletion({ op: 'delete', path: id });
-  await committed(doc, text);
+  await apply(`Delete ${baseOf(id)}`, [{ path: `${SOUNDS}/${id}`, sha: null }], { op: 'delete', path: id }, doc);
 }
 
 /** Delete a folder (a playlist, an ambience playlist or a pad bank) and every file in it. Resolves to
@@ -562,15 +637,12 @@ export async function deleteFolder(dir) {
   if (doc.playlists.list) doc.playlists.list = doc.playlists.list.filter((pl) => !pl.dir || !under(pl.dir, dir));
   if (doc.boards.banks) doc.boards.banks = doc.boards.banks.filter((b) => !b.dir || !under(b.dir, dir));
   if (doc.boards.active && under(doc.boards.active, dir)) doc.boards.active = null;
-  const text = setupText(doc);
   const prefix = `${SOUNDS}/${dir}/`;
-  await github.commit(`Delete the folder ${dir}`, async (listTree) => {
+  await apply(`Delete the folder ${dir}`, async (listTree) => {
     const gone = (await listTree()).filter((e) => e.type === 'blob' && e.path.startsWith(prefix)).map((e) => ({ path: e.path, sha: null, mode: e.mode }));
     if (!gone.length) throw new Error("GitHub doesn't have that folder yet. Give it a minute and try again.");
-    return [...gone, { path: SETUP_PATH, content: text }];
-  });
-  addDeletion({ op: 'rmdir', path: dir });
-  await committed(doc, text);
+    return gone;
+  }, { op: 'rmdir', path: dir }, doc);
   return ids;
 }
 
@@ -580,10 +652,7 @@ export async function createFolder(parent, name) {
   if (!clean) throw new Error('Give the folder a name.');
   const dir = joinPath(parent, clean);
   if (view.folders.some((d) => d.toLowerCase() === dir.toLowerCase())) throw new Error(`There is already a folder called ${clean}.`);
-  await github.commit(`Add the folder ${dir}`, [{ path: `${SOUNDS}/${dir}/README.md`, content: folderReadme(dir) }]);
-  addPending({ op: 'mkdir', path: dir });
-  view = settle(manifest);
-  watch();
+  await apply(`Add the folder ${dir}`, [{ path: `${SOUNDS}/${dir}/README.md`, content: folderReadme(dir) }], { op: 'mkdir', path: dir }, null);
   return dir;
 }
 
@@ -596,19 +665,16 @@ export async function renameFolder(dir, newName, parent = dirOf(dir)) {
   if (to === dir) return { from: dir, to };
   if (view.folders.some((d) => d !== dir && d.toLowerCase() === to.toLowerCase())) throw new Error(`There is already a folder called ${clean}${parent === dirOf(dir) ? '' : ` in ${parent}`}.`);
   const doc = remapDoc(setup.doc, (id) => moveUnder(id, dir, to));
-  const text = setupText(doc);
   const prefix = `${SOUNDS}/${dir}/`;
-  await github.commit(parent === dirOf(dir) ? `Rename the folder ${dir} to ${baseOf(to)}` : `Move the folder ${dir} to ${parent}`, async (listTree) => {
+  await apply(parent === dirOf(dir) ? `Rename the folder ${dir} to ${baseOf(to)}` : `Move the folder ${dir} to ${parent}`, async (listTree) => {
     const moves = [];
     for (const e of await listTree()) {
       if (e.type !== 'blob' || !e.path.startsWith(prefix)) continue;
       moves.push({ path: `${SOUNDS}/${to}/${e.path.slice(prefix.length)}`, sha: e.sha, mode: e.mode }, { path: e.path, sha: null, mode: e.mode });
     }
     if (!moves.length) throw new Error("GitHub doesn't have that folder yet. Give it a minute and try again.");
-    return [...moves, { path: SETUP_PATH, content: text }];
-  });
-  addPending({ op: 'movedir', from: dir, to });
-  await committed(doc, text);
+    return moves;
+  }, { op: 'movedir', from: dir, to }, doc);
   return { from: dir, to };
 }
 

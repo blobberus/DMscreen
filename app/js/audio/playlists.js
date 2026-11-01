@@ -7,7 +7,7 @@ import { uid } from '../core/util.js';
 import { library } from '../core/library.js';
 import { engine } from './engine.js';
 import { SITE } from '../core/mode.js';
-import { folderName } from '../core/site.js';
+import { folderName, soundAccess } from '../core/site.js';
 
 export const REPEAT = { off: 'Play through once', all: 'Repeat the playlist', one: 'Repeat the track' };
 
@@ -74,7 +74,8 @@ export const playlists = {
    * playlists in folder order, music first, until you change them.
    */
   reconcile() {
-    if (!SITE) return;
+    // a device that can't read the private sounds sees none: rebuilding from that would wipe the setup
+    if (!SITE || soundAccess() !== 'ok') return;
     const before = JSON.stringify(state.get('playlists'));
     const sounds = library.list();
     const d = structuredClone(state.get('playlists'));
