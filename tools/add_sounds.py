@@ -143,7 +143,8 @@ def set_up_drop(drop, sounds=None):
         (drop / cat).mkdir(parents=True, exist_ok=True)
         if sounds and (sounds / cat).is_dir():
             for d in sorted((sounds / cat).iterdir()):
-                if d.is_dir() and not d.name.startswith('.'):
+                # an empty folder is a deleted playlist that Windows left behind, not one to fill
+                if d.is_dir() and not d.name.startswith('.') and any(p.is_file() for p in d.rglob('*')):
                     (drop / cat / d.name).mkdir(exist_ok=True)
     note, text = drop / HOWTO, howto_text().replace('\n', '\r\n').encode('utf-8')
     try:

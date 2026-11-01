@@ -65,7 +65,9 @@ def main():
     for dirpath, dirnames, filenames in os.walk(sounds):
         dirnames[:] = sorted(d for d in dirnames if not d.startswith('.'))
         d = Path(dirpath)
-        if d != sounds:
+        # a folder with nothing in it isn't in git (a deleted playlist that Windows left behind): skip it,
+        # so a run here lists what GitHub's checkout has
+        if d != sounds and any(p.is_file() for p in d.rglob('*')):
             folders.append(d.relative_to(sounds).as_posix())
         for fn in sorted(filenames):
             src = d / fn
