@@ -22,13 +22,101 @@
    "volume": 1.1
   },
   "Music/06 Suspense/Suspense.mp3": {
-   "volume": 0.7000000000000001
+   "volume": 0.7000000000000001,
+   "trimEnd": 1172.216,
+   "loopFade": 3
   },
   "Ambience/Towns & Cities/Blacksmith (NO HAMMER).mp3": {
-   "volume": 0.9299999999999999
+   "volume": 0.9299999999999999,
+   "trimEnd": 1087.698,
+   "loopFade": 3
   },
   "Ambience/Tavern/Crowded Tavern (NO MUSIC).mp3": {
    "volume": 1.08
+  },
+  "Ambience/Outdoors/Coast.mp3": {
+   "trimEnd": 1114.875,
+   "loopFade": 3
+  },
+  "Ambience/Outdoors/Tall Forest.mp3": {
+   "trimEnd": 947.2
+  },
+  "Ambience/Tavern/Tavern (ROOM).mp3": {
+   "trimStart": 6.0,
+   "trimEnd": 1195.0
+  },
+  "Ambience/Towns & Cities/Quiet Village.mp3": {
+   "trimEnd": 1175.288,
+   "loopFade": 3
+  },
+  "Ambience/Weather/Heavy Wind.mp3": {
+   "trimEnd": 1193.461,
+   "loopFade": 3
+  },
+  "Ambience/Weather/Rain and Wind.mp3": {
+   "trimStart": 30,
+   "trimEnd": 849.32,
+   "loopFade": 3
+  },
+  "Ambience/Weather/Thunderstorm.mp3": {
+   "trimStart": 30,
+   "trimEnd": 1165.656,
+   "loopFade": 3
+  },
+  "Ambience/Weather/Windy Forest.mp3": {
+   "trimEnd": 1148.52,
+   "loopFade": 3
+  },
+  "Music/Epic & Introduction/A Knight of the Seven Kingdoms Season 1 Soundtrack What Chance Do I Have - Dan Romer.mp3": {
+   "trimStart": 0.35,
+   "trimEnd": 128.74
+  },
+  "Music/Epic & Introduction/Aníron.mp3": {
+   "trimStart": 1.75,
+   "trimEnd": 161.96
+  },
+  "Music/Epic & Introduction/Aragorn Coronation Song.mp3": {
+   "trimStart": 6.6,
+   "trimEnd": 374.04
+  },
+  "Music/Epic & Introduction/Deep Within Breath of Life Album by Dustin Selva.mp3": {
+   "trimEnd": 143.32
+  },
+  "Music/Epic & Introduction/Edge Of Night (Pippin's Song) (from The Lord Of The Rings The Return Of The King ).mp3": {
+   "trimStart": 1.0,
+   "trimEnd": 322.56
+  },
+  "Music/Epic & Introduction/FAR Changing Tides Soundtrack 21 Rise.mp3": {
+   "trimEnd": 193.19
+  },
+  "Music/Epic & Introduction/Intro Flute.mp3": {
+   "trimStart": 0.5
+  },
+  "Music/Epic & Introduction/Journey to the Grey Havens.mp3": {
+   "trimStart": 0.45,
+   "trimEnd": 451.85
+  },
+  "Music/Epic & Introduction/Stoick's Ship.mp3": {
+   "trimEnd": 224.83
+  },
+  "Music/Epic & Introduction/The Edge of Night.mp3": {
+   "trimStart": 1.65,
+   "trimEnd": 72.82
+  },
+  "Effects/fx/Bell Tower.mp3": {
+   "trimStart": 0.25,
+   "trimEnd": 21.67
+  },
+  "Effects/fx/Crow.mp3": {
+   "trimStart": 0.6,
+   "trimEnd": 9.05
+  },
+  "Effects/fx/Shifting Stones.mp3": {
+   "trimStart": 1.5,
+   "trimEnd": 6.1
+  },
+  "Effects/fx/Thunder.mp3": {
+   "trimStart": 0.3
   }
  },
  "playlists": {

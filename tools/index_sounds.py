@@ -14,6 +14,7 @@ import argparse
 import json
 import os
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -61,6 +62,13 @@ def main():
         print('warning: no ffmpeg, so new sounds get no waveform or length (pip install imageio-ffmpeg)', file=sys.stderr)
 
     known = git_shas(sounds)
+    # git's ids are the staged copies: a file changed since (re-encoded, not yet added) gets its own id,
+    # or the list would point the screen at the old content
+    try:
+        out = subprocess.run(['git', 'ls-files', '-m', '-z', '--', '.'], cwd=sounds, capture_output=True, check=True).stdout
+        changed = {p.decode('utf-8') for p in out.split(b'\0') if p}
+    except Exception:
+        changed = set()
     folders, files, used, total, fresh = [], [], set(), 0, 0
     for dirpath, dirnames, filenames in os.walk(sounds):
         dirnames[:] = sorted(d for d in dirnames if not d.startswith('.'))
@@ -78,7 +86,7 @@ def main():
             total += size
             if size > GITHUB_FILE_LIMIT:
                 print(f'warning: {rel} is over GitHub\'s 100 MB limit for one file', file=sys.stderr)
-            sha = known.get(rel) or blob_sha(src)
+            sha = (known.get(rel) if rel not in changed else None) or blob_sha(src)
             used.add(sha)
             dest = peaks_dir / f'{sha}.json'
             peaks = read_peaks(dest)

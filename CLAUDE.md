@@ -115,7 +115,10 @@ tools/index_sounds.py   the sounds repo's library.json + peaks/ (reuses build_si
   crossfaded copies a few ms apart cancelled out (dips to 9% on a tone) - don't go back to that. Transport
   (playPlaylist/playSingle/next/prev/togglePlay/jumpFlag/nextFlag/prevFlag), pads (firePad,
   stopPadVoice), fadeAll, toggleDuck, preview.
-  Files ≤ 2 min decode to AudioBuffers; longer ones stream through MediaElementSource.
+  Files ≤ 2 min decode to AudioBuffers (≤ 45 s on iOS); longer ones stream through MediaElementSource.
+  Streamed sounds must be constant-bitrate MP3: a browser seeks a VBR MP3 only to its 100-point Xing table
+  (Chrome started a 6.6 s trim ~4 s early, silent while currentTime said 6.6). add_sounds.py encodes CBR
+  160k and re-encodes VBR MP3s over 45 s.
   Crossfades (the deck's track changes, `crossIn` + `stop(fade, 'power')`, and MediaVoice loop wraps) use
   `powerRamp`: an equal-power sine/cosine fade built from short linear segments (setValueCurveAtTime can't be
   cut short: a pause or volume change mid-fade threw). Straight lines dipped 3 dB mid-crossfade (noise test:

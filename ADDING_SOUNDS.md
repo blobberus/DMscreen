@@ -30,15 +30,18 @@ change the name).
 - **25 MB per file** (GitHub's upload page) and **about 2 GB for the whole sounds repo**.
 - Long recordings (one-hour YouTube ambience) become **20 minutes at 128 kb/s, about 18 MB**. They
   loop on the screen, so that is plenty. Short sounds and effects are kept whole.
-- MP4 audio (`.m4a`) becomes MP3, and anything at 160 kb/s or more can be re-encoded at LAME V4
-  (`-q:a 4`: good quality, about 140 kb/s). Files at 128 kb/s or less stay as they are.
+- MP4 audio (`.m4a`) becomes MP3 at **160 kb/s constant bitrate** (`-b:a 160k`), and so does an MP3 at
+  160 kb/s or more. Constant-bitrate MP3s under 160 kb/s stay as they are. **No variable-bitrate MP3s for
+  anything longer than 45 s:** those stream, and a browser seeks a variable-bitrate MP3 only to the nearest
+  of 100 points, so a trim, a flag or a scrub lands seconds off (a 6.6 s trim started 4 s early).
 - **Never put sounds in this repo (DMscreen):** it is public, and everything in it is published.
 
 ## On the Windows PC, the easy way
 
 Drop the files into `Desktop\Sounds to Add\Music\<playlist>\` (or `Ambience\<name>\`, `Effects\<bank>\`; a
 new name makes a new playlist or pad bank) and double-click `add_sounds.bat` in DMscreen. It pulls
-DMscreen-sounds, keeps MP3s under 160 kb/s as they are, re-encodes the rest (MP4, M4A, WAV…) at LAME V4,
+DMscreen-sounds, keeps constant-bitrate MP3s under 160 kb/s as they are, re-encodes the rest (MP4, M4A,
+WAV…, and variable-bitrate MP3s over 45 s) at 160 kb/s constant bitrate,
 and cuts anything still over 25 MB with `shrink_sounds.py`. It commits only the new files under `sounds/`
 (plus a README.md for a new folder), one commit per folder, pushing about 120 MB at a time. Only after a
 push succeeds do the originals move to `Sounds to Add\Added\<date>\`. It stops with a message if the

@@ -7,8 +7,10 @@ Double-click add_sounds.bat (it runs this). The drop folder is laid out like the
     Sounds to Add\\Effects\\<bank>\\...       a bank of soundboard pads
 
 Every sound or video in those folders goes into the same folder of the private sounds repo
-(blobberus/DMscreen-sounds, cloned beside this one) as an MP3: MP3s under 160 kb/s as they are,
-everything else re-encoded at LAME V4 (about 140 kb/s; a video gives its sound), and whatever would
+(blobberus/DMscreen-sounds, cloned beside this one) as an MP3: constant-bitrate MP3s under 160 kb/s
+as they are, everything else re-encoded at 160 kb/s constant bitrate (a video gives its sound; a
+variable-bitrate MP3 that streams seeks only roughly in browsers, so a trim or flag landed seconds off),
+and whatever would
 still be over 25 MB cut to 20 minutes at 128 kb/s by tools/shrink_sounds.py. A new folder gets the
 README.md the screen would give it. The clone is brought up to date first; then each folder is one
 commit, pushed on its own (a big folder in parts of about 120 MB: a 730 MB push timed out), and only
@@ -47,8 +49,11 @@ CATEGORIES = {'music': ('Music', 'playlist'), 'ambience': ('Ambience', 'ambience
 VIDEO_EXTS = {'.mp4', '.m4v', '.mov', '.mkv', '.avi', '.wmv', '.mpg', '.mpeg', '.flv'}
 SOUND_EXTS = AUDIO_EXTS | {'.wma', '.aif', '.aiff'} | VIDEO_EXTS     # ffmpeg reads them all; they go in as MP3
 LIMIT = 25 * 2 ** 20                # GitHub's upload page (and shrink_sounds.py's --limit)
-KEEP_BELOW = 160                    # MP3s under this many kb/s go in as they are
-LOWEST_V4 = 8000                    # bytes a second: under 64 kb/s V4 is rare, so longer than LIMIT / this is cut straight away
+KEEP_BELOW = 160                    # constant-bitrate MP3s under this many kb/s go in as they are
+CBR_KBPS = 160                      # what everything else is encoded at (constant bitrate)
+CBR_BYTES = CBR_KBPS * 1000 // 8    # bytes a second: longer than LIMIT / this is cut straight away
+DECODED_MAX = 45                    # seconds: shorter sounds are decoded whole on an iPad (engine.js), so a
+                                    # variable bitrate doesn't matter there; longer ones stream
 IGNORED = {'desktop.ini', 'thumbs.db', HOWTO.lower()}
 
 
@@ -252,15 +257,27 @@ def probe(ffmpeg, s):
     s.kbps = int(rate[1]) if rate else (s.size_in * 8 / 1000 / s.length if s.length else 0)
 
 
+def variable_bitrate(path):
+    """A Xing header (not Info) in the first frame: a variable-bitrate MP3."""
+    try:
+        with open(path, 'rb') as f:
+            return b'Xing' in f.read(8192)
+    except OSError:
+        return False
+
+
 def is_small_mp3(s):
-    return s.codec == 'mp3' and s.src.suffix.lower() == '.mp3' and s.kbps < KEEP_BELOW
+    if not (s.codec == 'mp3' and s.src.suffix.lower() == '.mp3' and s.kbps < KEEP_BELOW):
+        return False
+    # a streamed variable-bitrate MP3 seeks to the nearest of 100 points: trims and flags land off
+    return s.length <= DECODED_MAX or not variable_bitrate(s.src)
 
 
 def route(s):
     """'keep', 'encode' or 'cut' (an encode still ends in a cut if it comes out over 25 MB)."""
     if is_small_mp3(s):
         return 'keep' if s.size_in <= LIMIT else 'cut'
-    return 'cut' if s.length * LOWEST_V4 > LIMIT else 'encode'
+    return 'cut' if s.length * CBR_BYTES > LIMIT else 'encode'
 
 
 def source(s):
@@ -283,13 +300,13 @@ def prepare(s, ffmpeg, work, n):
     if way == 'encode':
         out = work / f'{n}.mp3'
         r = subprocess.run([ffmpeg, '-hide_banner', '-loglevel', 'error', '-y', '-i', str(s.src), '-map', '0:a:0', '-vn',
-                            '-map_metadata', '-1', '-map_chapters', '-1', '-c:a', 'libmp3lame', '-q:a', '4', str(out)],
+                            '-map_metadata', '-1', '-map_chapters', '-1', '-c:a', 'libmp3lame', '-b:a', f'{CBR_KBPS}k', str(out)],
                            capture_output=True)
         if r.returncode or not out.is_file():
             s.error = 'ffmpeg could not convert it: ' + (r.stderr.decode('utf-8', 'replace').strip().splitlines() or ['?'])[-1][:200]
             return s
         if out.stat().st_size <= LIMIT:
-            s.ready, s.size_out, s.how = out, out.stat().st_size, f're-encoded from {source(s)}'
+            s.ready, s.size_out, s.how = out, out.stat().st_size, f're-encoded from {source(s)}{" (variable bitrate)" if s.codec == "mp3" and variable_bitrate(s.src) else ""} at {CBR_KBPS} kb/s'
             return s
         out.unlink()                # still too big: cut it from the original instead
     # the way tools/shrink_sounds.py makes long sounds small (20 minutes from 30 s in, 128 kb/s): it does it
@@ -450,7 +467,7 @@ def dry_run(found, skipped, ffmpeg):
             print(f'\n{folder}' + (f'  (a new {kind}, with a README.md)' if s.new_folder else ''))
         way = route(s)
         what = {'keep': f'as it is ({source(s)})',
-                'encode': f're-encoded at LAME V4 from {source(s)} (cut to 20 minutes if that comes out over 25 MB)',
+                'encode': f're-encoded at {CBR_KBPS} kb/s from {source(s)} (cut to 20 minutes if that comes out over 25 MB)',
                 'cut': f'cut to 20 minutes at 128 kb/s (it is {s.length / 60:.0f} minutes)'}[way]
         print(f'  {s.name}  {size(s.size_in)}, {what}')
     print_skipped(skipped)
