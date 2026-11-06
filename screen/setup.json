@@ -269,7 +269,7 @@
     "name": "World"
    }
   ],
-  "active": "Effects/Creatures"
+  "active": "Effects/fx"
  },
  "keymap": {}
 }
