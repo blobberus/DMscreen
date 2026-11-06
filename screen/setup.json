@@ -225,12 +225,12 @@
      "E": {
       "sound": "Effects/fx/Rock Rolling.mp3",
       "mode": "once",
-      "volume": 1
+      "volume": 0.67
      },
      "R": {
       "sound": "Effects/fx/Shifting Stones.mp3",
       "mode": "once",
-      "volume": 1
+      "volume": 0.76
      },
      "T": {
       "sound": "Effects/fx/Thunder.mp3",
