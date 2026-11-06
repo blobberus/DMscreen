@@ -42,8 +42,8 @@
    "trimEnd": 947.2
   },
   "Ambience/Tavern/Tavern (ROOM).mp3": {
-   "trimStart": 6.0,
-   "trimEnd": 1195.0
+   "trimStart": 6,
+   "trimEnd": 1195
   },
   "Ambience/Towns & Cities/Quiet Village.mp3": {
    "trimEnd": 1175.288,
@@ -83,7 +83,7 @@
    "trimEnd": 143.32
   },
   "Music/Epic & Introduction/Edge Of Night (Pippin's Song) (from The Lord Of The Rings The Return Of The King ).mp3": {
-   "trimStart": 1.0,
+   "trimStart": 1,
    "trimEnd": 322.56
   },
   "Music/Epic & Introduction/FAR Changing Tides Soundtrack 21 Rise.mp3": {
