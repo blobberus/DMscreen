@@ -12,10 +12,11 @@ import { library } from '../core/library.js';
 import { api, upload } from '../core/api.js';
 import { bus } from '../core/bus.js';
 import { state, SEARCH_ENGINES } from '../core/state.js';
-import { keys, keyFromCode, GROUPS } from '../core/keys.js';
+import { keys, keyFromCode, comboLabel, GROUPS } from '../core/keys.js';
 import { kbd } from '../core/kbd.js';
 import { openDialog, confirmDialog, toast } from '../core/ui.js';
 import { engine } from '../audio/engine.js';
+import { soundCheckPanel } from './soundcheck.js';
 
 const AREAS = SITE
   ? [['general', 'General'], ['github', 'GitHub'], ['keys', 'Keys'], ['sites', 'Sites'], ['notes', 'Notes'], ['audio', 'Audio'], ['device', 'This device']]
@@ -545,11 +546,17 @@ function audio(view, saved) {
     sync();
     return h('label', { class: 'field' }, h('span', { class: 'field-label' }, label), h('span', { class: 'st-slider' }, r, out));
   };
+  const combo = (id) => (keys.combo(id) ? ` (${comboLabel(keys.combo(id))})` : '');
   view.append(
+    section('Sound check', IOS
+      ? 'No sound from the iPad? Play each test and say whether you heard it: the answer says what’s wrong. Copy the report to send it on.'
+      : 'No sound? Play each test and say whether you heard it: the answer says what’s wrong. Copy the report to send it on.',
+    ...soundCheckPanel()),
     previewOutput(saved, slider('Preview level', 'previewLevel', 0, 1, 0.05, (v) => `${Math.round(v * 100)}%`, () => engine.applyLevels())),
-    section('Fades', 'How music moves from one track or playlist to the next.',
+    section('Fades', 'How music moves from one track or playlist to the next, and how long the fade buttons take.',
       slider('Crossfade for new playlists', 'crossfade', 0, 10, 0.5, (v) => `${v.toFixed(1)} s`),
-      slider('Fade all (Alt+0) takes', 'fadeAll', 0.5, 10, 0.5, (v) => `${v.toFixed(1)} s`)),
+      slider(`Fade all${combo('fade.all')} takes`, 'fadeAll', 0.5, 10, 0.5, (v) => `${v.toFixed(1)} s`),
+      slider(`Fade effects${combo('effects.fade')} takes`, 'fadeEffects', 0.5, 10, 0.5, (v) => `${v.toFixed(1)} s`)),
     section('Duck', 'Duck lowers music and ambience while you talk over them (Alt+\\). Effects stay full.',
       slider('Ducked level', 'duckAmount', 0.05, 0.8, 0.05, (v) => `${Math.round(v * 100)}%`, () => { if (engine.ducked) engine.toggleDuck(true); })),
   );

@@ -256,8 +256,12 @@
   .top-level, .top-btn .label, .keys-status .label { display: none; }
 }
 @media (max-width: 1180px) {
-  .top-btn .label { display: none; }
+  .top-btn:not(.top-act) .label { display: none; }
   .top-level { width: 110px; }
+}
+/* Duck and the two fades keep their words on an iPad held sideways: a touch screen has no hover to name an icon */
+@media (max-width: 1100px) {
+  .top-act .label { display: none; }
 }
 
 /* Layout menu glyphs */

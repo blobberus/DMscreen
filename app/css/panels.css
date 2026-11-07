@@ -655,6 +655,24 @@ button.pd-key:active, .pd-key.is-hit { transform: translateY(1px); }
 .st-capture { color: var(--warn); font-size: 13px; }
 .st-slider { display: flex; align-items: center; gap: 10px; }
 .st-num { width: 52px; text-align: right; color: var(--muted); }
+/* the sound check (Settings, Audio): dialogs/soundcheck.js */
+.ck-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 0; font-size: 14px; }
+.ck-facts dt { color: var(--faint); }
+.ck-facts dd { margin: 0; color: var(--muted); }
+.ck-tests { display: flex; flex-direction: column; }
+.ck-test { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--rule); }
+.ck-test:first-child { border-top: 1px solid var(--rule); }
+.ck-play { width: var(--control-h); padding: 0; justify-content: center; }
+.ck-what { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ck-name { font-weight: 500; }
+.ck-seen { font-size: 13px; color: var(--muted); }
+.ck-seen.is-bad { color: var(--warn); }
+.ck-ask { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.ck-ask .btn[aria-pressed="true"] { color: var(--text); background: var(--raised-3); }
+.ck-verdict { margin: 0; padding: 8px 12px; color: var(--text); background: var(--raised); border-radius: var(--radius-sm); }
+.ck-details summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+.ck-report { margin: 8px 0 0; padding: 10px 12px; max-height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 400 12px / 1.45 ui-monospace, Consolas, monospace; color: var(--muted); background: var(--raised); border-radius: var(--radius-sm); user-select: text; -webkit-user-select: text; }
+@container (max-width: 520px) { .ck-test { grid-template-columns: auto minmax(0, 1fr); } .ck-ask { grid-column: 2; justify-content: flex-start; } }
 @container (max-width: 640px) { .st-sec { grid-template-columns: 1fr; gap: 10px; } }
 @media (max-width: 700px) {
   .st { grid-template-columns: 1fr; }

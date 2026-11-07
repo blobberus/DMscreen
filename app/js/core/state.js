@@ -19,6 +19,7 @@ export const DEFAULTS = {
     duckAmount: 0.3,
     crossfade: 3,
     fadeAll: 3,
+    fadeEffects: 2,            // Fade effects: pads and library effects only, the music plays on
     railOpen: false,           // the side rail shows pane names and their tabs
     previewOutput: null,       // {id, label}: previews play on this device (headphones) instead of the main output
     previewLevel: 0.95,

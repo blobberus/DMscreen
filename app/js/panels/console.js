@@ -135,7 +135,8 @@ export default function createConsole({ el, id, getState, setState }) {
       h('h3', { class: 'cn-h' }, 'Mixer'),
       h('span', { class: 'cn-spacer' }),
       duckBtn,
-      h('button', { class: 'btn btn-sm', type: 'button', title: 'Fade everything out (Alt+0)', onclick: () => engine.fadeAll() }, icon('fade'), 'Fade all', kbd(keys.combo('fade.all')))),
+      h('button', { class: 'btn btn-sm', type: 'button', title: 'Fade the effects out; music and ambience play on', onclick: () => engine.fadeEffects() }, icon('fade-fx'), 'Fade effects', kbd(keys.combo('effects.fade'))),
+      h('button', { class: 'btn btn-sm', type: 'button', title: 'Fade everything out', onclick: () => engine.fadeAll() }, icon('fade'), 'Fade all', kbd(keys.combo('fade.all')))),
     strips);
 
   root.append(now, mixer);

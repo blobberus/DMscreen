@@ -9,7 +9,7 @@ import * as site from './core/site.js';
 import { state } from './core/state.js';
 import { library } from './core/library.js';
 import { bus } from './core/bus.js';
-import { keys } from './core/keys.js';
+import { keys, comboLabel } from './core/keys.js';
 import { kbd } from './core/kbd.js';
 import { toast } from './core/ui.js';
 import { fmtTime, clamp } from './core/util.js';
@@ -115,9 +115,12 @@ function buildTop() {
 
   // master section
   const right = document.getElementById('top-right');
-  const duck = h('button', { class: 'btn btn-ghost top-btn', type: 'button', title: 'Duck music and ambience while you talk (Alt+\\)', 'aria-pressed': 'false', onclick: () => engine.toggleDuck() },
+  const duck = h('button', { class: 'btn btn-ghost top-btn top-act', type: 'button', title: 'Duck music and ambience while you talk (Alt+\\)', 'aria-pressed': 'false', onclick: () => engine.toggleDuck() },
     icon('duck'), h('span', { class: 'label' }, 'Duck'), kbd(keys.combo('duck')));
-  const fade = h('button', { class: 'btn btn-ghost top-btn', type: 'button', title: 'Fade everything out (Alt+0)', onclick: () => engine.fadeAll() },
+  const combo = (id) => (keys.combo(id) ? ` (${comboLabel(keys.combo(id))})` : '');
+  const fadeFx = h('button', { class: 'btn btn-ghost top-btn top-act', type: 'button', title: `Fade the effects out; music and ambience play on${combo('effects.fade')}`, 'aria-label': 'Fade effects', onclick: () => engine.fadeEffects() },
+    icon('fade-fx'), h('span', { class: 'label' }, 'Fade effects'), kbd(keys.combo('effects.fade')));
+  const fade = h('button', { class: 'btn btn-ghost top-btn top-act', type: 'button', title: `Fade everything out${combo('fade.all')}`, 'aria-label': 'Fade all', onclick: () => engine.fadeAll() },
     icon('fade'), h('span', { class: 'label' }, 'Fade all'), kbd(keys.combo('fade.all')));
   const master = h('input', { class: 'range', type: 'range', min: 0, max: 100, step: 1, 'aria-label': 'Master volume' });
   const masterNum = h('span', { class: 'num' });
@@ -192,7 +195,7 @@ function buildTop() {
   };
   bus.on('layout:changed', markHidden);
 
-  right.append(duck, fade, level, status, hiddenBtn, layoutBtn);
+  right.append(duck, fadeFx, fade, level, status, hiddenBtn, layoutBtn);
 }
 
 // ---------- keyboard actions -------------------------------------------------------------
@@ -334,6 +337,7 @@ async function boot() {
   wireKeys();
   workspace.mount(document.getElementById('workspace'));
   engine.preload(Object.values(board.active().pads).map((p) => p.sound));
+  bus.on('audio:restarted', () => engine.preload(Object.values(board.active().pads).map((p) => p.sound)));
   library.refreshJobs().then((jobs) => { if (jobs.some((j) => !['done', 'error', 'cancelled'].includes(j.status))) library.pollJobs(); }).catch(() => {});
   bus.on('state:saved', ({ ok, error }) => { if (!ok) toast(`Couldn't save your changes: ${error}. Retrying.`, { type: 'error' }); });
   bus.on('job:finished', (j) => {

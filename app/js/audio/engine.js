@@ -32,6 +32,7 @@ const LP_OPEN = 20000;
 const LP_MIN = 150;            // the low-pass at its most muffled
 export const SPEED_MIN = 0.5;  // the speed control's range: half to double, pitch following like a tape
 export const SPEED_MAX = 2;
+export const CHIME = [[523.25, 0], [783.99, 0.22]];   // the sound check's two notes: [Hz, seconds in]
 let serial = 0;
 // Pitch follows speed for every voice: decoded sounds can't keep it, so streamed ones don't either.
 const rateOn = (el, r) => {
@@ -40,6 +41,56 @@ const rateOn = (el, r) => {
   el.defaultPlaybackRate = r;                 // a reload of the element resets playbackRate to this
   el.playbackRate = r;
 };
+
+// ---------------------------------------------------------------------------
+// The iPad's rules for sound
+// ---------------------------------------------------------------------------
+
+// iPadOS plays a page's Web Audio as "ambient" sound unless the page asks otherwise: Silent mode mutes it on
+// the built-in speaker (headphones and Bluetooth still play) and the lock stops it. 'playback' plays through
+// both, like a music app. It is asked before the context exists, and again on taps (iPadOS 17+).
+function playbackSession() {
+  try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch { /* older Safari */ }
+}
+
+// iPadOS lets an <audio> element make sound only if the element was made, or first played, during a tap
+// (WebKit marks each element when it is made). The deck's next track, an ambience loop's next pass and a
+// queued sound start with no tap, and a fresh element then stayed silent ("click anywhere") or ended the
+// loop. So every tap makes a few spare elements, a voice takes one, and an element that has played goes
+// back to the spares when its sound is done. Each keeps its MediaElementSource (one per element, ever).
+const SPARES = 6;
+const spares = [];
+function topUpSpares() {
+  if (navigator.userActivation && !navigator.userActivation.isActive) return;     // not inside a tap
+  while (spares.length < SPARES) { const el = new Audio(); el.dmSpare = true; spares.push(el); }
+}
+function takeElement() {
+  while (spares.length) {
+    const el = spares.pop();
+    if (!el.dmNode || el.dmCtx === ctx) return el;     // a source made for an engine since restarted can't move
+  }
+  return new Audio();
+}
+function giveBack(el) {
+  if ((el.dmSpare || el.dmPlayed) && el.dmCtx === ctx && spares.length < SPARES * 2) spares.push(el);
+}
+
+// Older iPadOS (before 17) has no audioSession: a silent <audio> playing alongside makes it treat the page as
+// playing media, so Silent mode doesn't mute the engine.
+let silentLoop = null;
+function keepPlaybackOld() {
+  if (!IOS || navigator.audioSession || silentLoop) return;
+  const rate = 8000;
+  const wav = new DataView(new ArrayBuffer(44 + rate));
+  const text = (at, s) => { for (let i = 0; i < s.length; i++) wav.setUint8(at + i, s.charCodeAt(i)); };
+  text(0, 'RIFF'); wav.setUint32(4, 36 + rate, true); text(8, 'WAVEfmt '); wav.setUint32(16, 16, true);
+  wav.setUint16(20, 1, true); wav.setUint16(22, 1, true); wav.setUint32(24, rate, true); wav.setUint32(28, rate, true);
+  wav.setUint16(32, 1, true); wav.setUint16(34, 8, true); text(36, 'data'); wav.setUint32(40, rate, true);
+  for (let i = 0; i < rate; i++) wav.setUint8(44 + i, 128);          // one second of 8-bit silence
+  silentLoop = new Audio(URL.createObjectURL(new Blob([wav], { type: 'audio/wav' })));
+  silentLoop.loop = true;
+  silentLoop.play().catch(() => { silentLoop = null; });
+}
 
 // ---------------------------------------------------------------------------
 // Voices
@@ -102,7 +153,14 @@ class Voice {
     this.fadingOut = true;
     this.ramp(0, fade, curve);
     clearTimeout(this.endTimer);
-    setTimeout(() => this.dispose(), fade * 1000 + 60);
+    this.stopTimer = setTimeout(() => this.dispose(), fade * 1000 + 60);
+  }
+  /** A fade-out under way ends now (Fade effects pressed again while they fade). */
+  hurry() {
+    if (this.state !== 'stopping') return;
+    this.ramp(0, 0.06);
+    clearTimeout(this.stopTimer);
+    this.stopTimer = setTimeout(() => this.dispose(), 120);
   }
   finish() {
     if (this.state === 'stopped') return;
@@ -114,6 +172,7 @@ class Voice {
     this.state = 'stopped';
     clearTimeout(this.endTimer);
     clearTimeout(this.fadeTimer);
+    clearTimeout(this.stopTimer);
     this.release();
     try { this.out.disconnect(); this.filter.disconnect(); } catch { /* already */ }
     this.engine.voices.delete(this);
@@ -146,33 +205,40 @@ class Voice {
 
 /** Streams through an <audio> element; loops by seeking or by crossfading two elements. */
 class MediaVoice extends Voice {
+  // A spare element (see takeElement: on an iPad only those may start without a tap), its listeners
+  // tied to this use: they go when it goes back (gone), so a later sound on the same element isn't heard here.
   makeElement() {
-    const el = new Audio();
+    const el = takeElement();
     el.preload = 'auto';
     el.src = library.mediaUrl(this.sound.id);
     rateOn(el, this.rate);
-    const node = ctx.createMediaElementSource(el);
+    if (!el.dmNode) { el.dmNode = ctx.createMediaElementSource(el); el.dmCtx = ctx; }
+    const node = el.dmNode;
     const g = ctx.createGain();
     node.connect(g).connect(this.out);
-    const pair = { el, node, g };
-    el.addEventListener('ended', () => { if (pair === this.cur && this.state === 'playing') this.passEnd(); });
-    el.addEventListener('timeupdate', () => { if (pair === this.cur && this.state === 'playing') this.armEnd(); });
+    const off = new AbortController();
+    const pair = { el, node, g, off };
+    const on = (type, fn) => el.addEventListener(type, fn, { signal: off.signal });
+    on('ended', () => { if (pair === this.cur && this.state === 'playing') this.passEnd(); });
+    on('timeupdate', () => { if (pair === this.cur && this.state === 'playing') this.armEnd(); });
     // iPadOS pauses an <audio> by itself when the output changes (a Bluetooth speaker or headphones
     // dropping for a moment): the engine still had it playing, so that sound stayed silent.
-    el.addEventListener('pause', () => { if (pair === this.cur && this.state === 'playing' && !el.ended) this.engine.revive(this); });
+    on('pause', () => { if (pair === this.cur && this.state === 'playing' && !el.ended) this.engine.revive(this); });
     return pair;
   }
   async start(at = 0) {
-    this.cur = this.makeElement();
+    const pair = this.cur = this.makeElement();
     this.state = 'loading';
-    await seekReady(this.cur.el, this.from + at);
-    if (this.state !== 'loading') return;
-    try { await this.cur.el.play(); } catch (e) {
-      const failed = !!this.cur.el.error;     // it never loaded (no connection, or GitHub said no)
+    await seekReady(pair.el, this.from + at, pair.off.signal);
+    if (this.state !== 'loading' || pair !== this.cur) return;
+    try { await pair.el.play(); } catch (e) {
+      if (pair !== this.cur) return;          // stopped while it was starting
+      const failed = !!pair.el.error;         // it never loaded (no connection, or GitHub said no)
       this.dispose();
       throw failed ? new Error('It didn’t load: is this device online?') : e;
     }
-    if (this.state !== 'loading') { this.cur.el.pause(); return; }
+    pair.el.dmPlayed = true;
+    if (this.state !== 'loading' || pair !== this.cur) { if (!pair.off.signal.aborted) pair.el.pause(); return; }
     this.state = 'playing';
     this.ramp(this.gain, this.fadeIn || 0.02, this.crossIn ? 'power' : null);
     this.armEnd();
@@ -208,7 +274,13 @@ class MediaVoice extends Voice {
       next.g.gain.value = 0;
       next.starting = true;               // not yet playing: not 'paused behind our back' either
       this.cur = next;
-      seekReady(next.el, this.from).then(() => next.el.play()).then(() => {
+      const gone = new Error('released');
+      seekReady(next.el, this.from, next.off.signal).then(() => {
+        if (next.off.signal.aborted) throw gone;      // the sound stopped meanwhile: its element may be another's now
+        return next.el.play();
+      }).then(() => {
+        next.el.dmPlayed = true;
+        if (next.off.signal.aborted) return;
         next.starting = false;
         const t = ctx.currentTime;
         // what the old pass has left by now (the new one took a moment to start), at the speed it plays:
@@ -218,6 +290,7 @@ class MediaVoice extends Voice {
         old.g.gain.cancelScheduledValues(t);
         powerRamp(next.g.gain, 0, 1, t, fade);
         powerRamp(old.g.gain, old.g.gain.value, 0, t, fade);
+        this.prevPair = old;              // released with the voice if it stops before the crossfade is over
         setTimeout(() => releasePair(old), fade * 1000 + 100);
         this.armEnd();
       }).catch(() => this.finish());
@@ -275,7 +348,7 @@ class MediaVoice extends Voice {
         g.setValueAtTime(0, t2);
         g.linearRampToValueAtTime(1, t2 + 0.015);
       };
-      pair.el.addEventListener('seeked', up, { once: true });
+      pair.el.addEventListener('seeked', up, { once: true, signal: pair.off.signal });
       this.seekBack = setTimeout(up, 600);           // no 'seeked' (already there, or an error): back anyway
       pair.el.currentTime = target;
       jumped();
@@ -283,7 +356,9 @@ class MediaVoice extends Voice {
   }
   release() {
     if (this.cur) releasePair(this.cur);
+    if (this.prevPair) releasePair(this.prevPair);
     this.cur = null;
+    this.prevPair = null;
   }
   relooped() {
     if (this.state !== 'playing') return;
@@ -310,21 +385,30 @@ function powerRamp(param, from, to, t, seconds) {
   }
 }
 
+/** The element stops and goes back to the spares (once: a crossfade's old pass can be let go twice). */
 function releasePair(pair) {
+  if (pair.released) return;
+  pair.released = true;
+  pair.off?.abort();
   try { pair.el.pause(); } catch { /* gone */ }
   pair.el.removeAttribute('src');
   try { pair.el.load(); } catch { /* fine */ }
   try { pair.node.disconnect(); pair.g.disconnect(); } catch { /* fine */ }
+  giveBack(pair.el);
 }
 
-function seekReady(el, t) {
+/** Loaded far enough to play from t. Gives up when signal aborts (the element was let go). */
+function seekReady(el, t, signal) {
   return new Promise((resolve) => {
     const done = () => { cleanup(); resolve(); };
-    const cleanup = () => { el.removeEventListener('loadedmetadata', onMeta); el.removeEventListener('seeked', done); el.removeEventListener('error', done); clearTimeout(timer); };
+    const cleanup = () => { el.removeEventListener('loadedmetadata', onMeta); el.removeEventListener('seeked', done); el.removeEventListener('error', done); signal?.removeEventListener('abort', done); clearTimeout(timer); };
     const onMeta = () => {
+      if (signal?.aborted) return;
       if (t > 0.01) { el.addEventListener('seeked', done, { once: true }); el.currentTime = t; } else done();
     };
+    if (signal?.aborted) { resolve(); return; }
     const timer = setTimeout(done, 6000);
+    signal?.addEventListener('abort', done, { once: true });
     el.addEventListener('error', done, { once: true });       // a sound that can't load says so at once
     if (el.readyState >= 1) onMeta(); else el.addEventListener('loadedmetadata', onMeta, { once: true });
   });
@@ -679,7 +763,23 @@ class Engine {
 
   init() {
     if (ctx) return;
+    playbackSession();            // before the context: iPadOS decides how to treat a page's sound as it starts
+    this.build();
+    if (this.wired) return;
+    this.wired = true;
+    navigator.mediaDevices?.addEventListener?.('devicechange', () => this.routePreview());
+    for (const type of ['pointerdown', 'touchend', 'click', 'keydown']) window.addEventListener(type, (e) => this.tapped(e), true);
+    this.watchOutput();
+    setInterval(() => { for (const v of this.voices) v.check(); }, 100);
+    this.loop();
+    this.mediaSession();
+  }
+
+  /** The context and its graph (again after restart()). */
+  build() {
     ctx = new AudioContext({ latencyHint: 'interactive' });
+    const c = ctx;
+    c.addEventListener('statechange', () => { if (c === ctx) this.stateChanged(); });
     this.limiter = ctx.createDynamicsCompressor();
     this.limiter.threshold.value = -3;
     this.limiter.knee.value = 4;
@@ -697,18 +797,39 @@ class Engine {
     }
     this.applyLevels(true);
     this.routePreview();
-    navigator.mediaDevices?.addEventListener?.('devicechange', () => this.routePreview());
-    // Safari only lets sound start inside a tap (touchend or click), and "interrupts" it after a call
-    // or another app's audio; any later tap or key wakes it again.
-    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* older Safari */ }
-    for (const type of ['pointerdown', 'touchend', 'click', 'keydown']) window.addEventListener(type, () => this.look(true), true);
-    this.watchOutput();
-    setInterval(() => { for (const v of this.voices) v.check(); }, 100);
-    this.loop();
-    this.mediaSession();
   }
 
   get suspended() { return !ctx || ctx.state !== 'running'; }
+
+  // ---- taps ---------------------------------------------------------------------------------------
+  // Safari only lets sound start inside a tap (a finger lifting, a click, a key), and "interrupts" it after
+  // a call or another app's audio; any later tap or key wakes it again. A finger touching down isn't a tap
+  // to iPadOS (it may become a scroll), so that only looks, without trying what needs a tap.
+  tapped(e) {
+    if (!ctx) return;
+    const tap = e.type !== 'pointerdown' || e.pointerType === 'mouse';
+    if (tap) {
+      playbackSession();
+      keepPlaybackOld();
+      topUpSpares();
+      this.unlock();
+    }
+    this.look(tap);
+  }
+  /** WebKit counts the context as started once a sound has begun in a tap, not on resume() alone: a
+   *  silent sample, until the context runs. */
+  unlock() {
+    if (ctx.state === 'running' && this.unlocked) return;
+    this.unlocked = ctx.state === 'running';
+    ctx.resume().catch(() => {});
+    try {
+      const src = ctx.createBufferSource();
+      src.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+      src.connect(ctx.destination);
+      src.onended = () => src.disconnect();
+      src.start();
+    } catch { /* a closed context */ }
+  }
 
   // ---- keeping the sound going ------------------------------------------------------------
   // iPadOS interrupts the audio when the output route changes (a Bluetooth speaker or headphones
@@ -718,18 +839,17 @@ class Engine {
   // Now the context is resumed by itself (Safari allows that after an interruption), a stopped clock is
   // restarted, paused elements play on from where they were, and if Safari insists on a tap, a note says
   // so and the next tap brings everything back. this.recoveries keeps what was done (for tests).
+  stateChanged() {
+    bus.emit('audio:state', ctx.state);
+    (this.retries || []).forEach(clearTimeout);
+    this.retries = [];
+    if (ctx.state === 'running') { this.recovered(); return; }
+    if (ctx.state === 'closed' || this.cycling) return;
+    this.retries = [0, 300, 1000, 2500, 5000].map((ms) => setTimeout(() => this.resumeContext('interrupted'), ms));
+    this.retries.push(setTimeout(() => { if (ctx.state !== 'running' && this.anythingPlaying()) this.needTap(); }, 3000));
+  }
   watchOutput() {
     this.recoveries = [];
-    let retries = [];
-    ctx.addEventListener('statechange', () => {
-      bus.emit('audio:state', ctx.state);
-      retries.forEach(clearTimeout);
-      retries = [];
-      if (ctx.state === 'running') { this.recovered(); return; }
-      if (ctx.state === 'closed' || this.cycling) return;
-      retries = [0, 300, 1000, 2500, 5000].map((ms) => setTimeout(() => this.resumeContext('interrupted'), ms));
-      retries.push(setTimeout(() => { if (ctx.state !== 'running' && this.anythingPlaying()) this.needTap(); }, 3000));
-    });
     let last = ctx.currentTime;
     let still = 0;
     let cycled = 0;
@@ -776,7 +896,8 @@ class Engine {
   kick(v) {
     clearTimeout(v.reviveTimer);
     this.recoveries.push({ what: 'element', sound: v.sound.name, at: Date.now() });
-    v.cur.el.play().then(() => this.recovered(), (e) => { if (e?.name === 'NotAllowedError') this.needTap(); });
+    const el = v.cur.el;
+    el.play().then(() => { el.dmPlayed = true; this.recovered(); }, (e) => { if (e?.name === 'NotAllowedError') this.needTap(); });
   }
   needTap() {
     if (this.tapAsked) return;
@@ -865,10 +986,16 @@ class Engine {
 
   startVoice(v, at = 0) {
     v.start(at).catch((e) => {
+      this.noteError(v.sound.name, e);
       if (e?.name === 'NotAllowedError') bus.emit('toast', { message: 'Click anywhere on the screen once to let it play sound.', type: 'error' });
       else bus.emit('toast', { message: `Couldn't play “${v.sound.name}”. ${e?.message || ''}`, type: 'error' });
     });
     return v;
+  }
+  /** The last few sounds that wouldn't play, for the sound check's report. */
+  noteError(name, e) {
+    (this.errors ||= []).push({ sound: name, error: `${e?.name || 'Error'}: ${e?.message || e}`, at: Date.now() });
+    if (this.errors.length > 8) this.errors.shift();
   }
 
   // ---- the deck ----------------------------------------------------------------
@@ -1006,6 +1133,19 @@ class Engine {
     for (const set of this.pads.values()) { for (const v of set) v.stop(fade); set.clear(); }
     this.changed();
   }
+  /** Fade every effect out (pads, and effects played from the library) while the music, the ambience
+   *  and the sounds on top play on. Pressed again while they fade, they stop at once. How many it took. */
+  fadeEffects(seconds = state.get('settings').fadeEffects ?? 2) {
+    this.fxFading = new Set([...(this.fxFading || [])].filter((v) => v.state === 'stopping'));
+    let n = 0;
+    for (const set of this.pads.values()) {
+      for (const v of set) { v.stop(seconds); this.fxFading.add(v); n++; }
+      set.clear();
+    }
+    if (!n) { for (const v of this.fxFading) v.hurry(); n = this.fxFading.size; this.fxFading.clear(); }
+    this.changed();
+    return n;
+  }
   effectCount() { let n = 0; for (const set of this.pads.values()) n += set.size; return n; }
   stopPadVoice(v, fade = 0.2) {
     for (const set of this.pads.values()) set.delete(v);
@@ -1122,6 +1262,72 @@ class Engine {
     this.changed();
   }
   anythingPlaying() { return [...this.voices].some((v) => v.state === 'playing'); }
+
+  // ---- starting again ---------------------------------------------------------------------
+  /** A new sound engine from nothing (a new AudioContext, new elements); everything playing stops, and the
+   *  deck keeps its playlist and place, so Play carries on. For an iPad Home Screen app that iPadOS has left
+   *  silent while the page thinks it plays (its audio session sticks after a trip to the background or a
+   *  call). Call it inside a tap. */
+  restart() {
+    if (!ctx) { this.init(); return; }
+    for (const v of [...this.voices]) v.dispose();
+    this.music.voice = null;
+    this.music.queued = null;
+    this.layers.clear();
+    for (const set of this.pads.values()) set.clear();
+    this.preview = null;
+    this.mix.clear();
+    this.buffers.clear();
+    spares.length = 0;                                // their sources belong to the old context
+    if (this.cue) { this.cue.el.pause(); this.cue = null; }
+    const old = ctx;
+    // iPadOS lets go of a stuck session when the page's type changes and its context closes
+    try { if (navigator.audioSession) navigator.audioSession.type = 'auto'; } catch { /* older Safari */ }
+    old.close().catch(() => {});
+    ctx = null;
+    this.recoveries.push({ what: 'restart', at: Date.now() });
+    this.init();
+    topUpSpares();
+    this.unlock();
+    this.changed();
+    bus.emit('audio:restarted');
+  }
+
+  // ---- the sound check (Settings, Audio) ----------------------------------------------------
+  /** What the sound check shows and reports about this device's sound. */
+  facts() {
+    return {
+      ios: IOS,
+      homeScreen: navigator.standalone === true || matchMedia('(display-mode: standalone)').matches,
+      session: navigator.audioSession ? navigator.audioSession.type : null,
+      state: ctx?.state || 'not started',
+      sampleRate: ctx?.sampleRate || null,
+      latency: ctx ? [ctx.baseLatency, ctx.outputLatency].map((x) => (x ? Math.round(x * 1000) : null)) : null,
+      levels: { ...this.levels(), preview: state.get('settings').previewLevel ?? 0.95 },
+      ducked: this.ducked,
+      previewRoute: this.previewRoute,
+      spares: spares.length,
+      recoveries: (this.recoveries || []).slice(-8),
+      errors: (this.errors || []).slice(),
+    };
+  }
+  /** Two notes straight to the output, past every fader: does the engine reach the speakers? In a tap. */
+  testTone() {
+    this.init();
+    this.unlock();
+    const t = ctx.currentTime + 0.05;
+    for (const [f, d] of CHIME) {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0, t + d);
+      g.gain.linearRampToValueAtTime(0.35, t + d + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.7);
+      o.connect(g).connect(ctx.destination);
+      o.start(t + d);
+      o.stop(t + d + 0.75);
+    }
+  }
 
   // ---- auditioning from the library / editor --------------------------------------
   /** One preview at a time; it doesn't touch the deck, layers or pads. */

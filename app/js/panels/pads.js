@@ -18,7 +18,7 @@ import { newFolder, renameFolder, folderItems, addButton, folderLabel } from '..
 const SHORT = {
   'music.toggle': 'Play / pause', 'music.prev': 'Previous track', 'music.next': 'Next track',
   'flag.prev': 'Previous flag', 'flag.next': 'Next flag', 'music.down': 'Music quieter', 'music.up': 'Music louder',
-  duck: 'Duck', 'fade.all': 'Fade all', 'effects.stop': 'Stop effects', help: 'Shortcuts', 'pane.max': 'Maximise',
+  duck: 'Duck', 'fade.all': 'Fade all', 'effects.fade': 'Fade effects', 'effects.stop': 'Stop effects', help: 'Shortcuts', 'pane.max': 'Maximise',
   'bank.prev': 'Previous bank', 'bank.next': 'Next bank',
 };
 
@@ -26,6 +26,7 @@ export default function createPads({ el }) {
   let editing = false;
   const banksEl = h('div', { class: 'tabs pd-banks', role: 'tablist' });
   const editBtn = h('button', { class: 'btn btn-sm', type: 'button', 'aria-pressed': 'false', title: 'Click pads to change them instead of playing them', onclick: () => { editing = !editing; editBtn.setAttribute('aria-pressed', String(editing)); root.classList.toggle('is-editing', editing); } }, icon('edit'), 'Edit pads');
+  const fadeBtn = h('button', { class: 'btn btn-sm', type: 'button', title: 'Fade the effects out; music and ambience play on. Press again to stop them at once.', onclick: () => engine.fadeEffects() }, icon('fade-fx'), 'Fade effects', kbd(keys.combo('effects.fade')));
   const stopBtn = h('button', { class: 'btn btn-sm', type: 'button', title: 'Stop all effects', onclick: () => engine.stopEffects() }, icon('stop'), 'Stop effects', kbd(keys.combo('effects.stop')));
   const boardEl = h('div', { class: 'pd-board' });
   const legend = h('div', { class: 'pd-legend' });
@@ -42,7 +43,7 @@ export default function createPads({ el }) {
         : `This bank plays the sounds in ${folderLabel(bank.dir)} on GitHub, and it's empty. Each sound you add takes the next free letter.`),
       ' ', addButton(bank.dir, 'Add sounds'));
   }
-  const root = h('div', { class: 'pd' }, h('div', { class: 'pd-bar' }, banksEl, h('span', { class: 'pd-spacer' }), editBtn, stopBtn), boardEl, legend, hint);
+  const root = h('div', { class: 'pd' }, h('div', { class: 'pd-bar' }, banksEl, h('span', { class: 'pd-spacer' }), editBtn, fadeBtn, stopBtn), boardEl, legend, hint);
   let layoutName = null;
   const pickLayout = () => ((root.clientWidth || 1000) >= BOARD_LAYOUTS.full.minWidth ? 'full' : 'letters');
   el.append(root);

@@ -90,6 +90,7 @@ keys.define('music.down', { label: 'Music quieter', combo: 'Alt+-', group: 'musi
 keys.define('music.up', { label: 'Music louder', combo: 'Alt+=', group: 'music', repeat: true });
 keys.define('duck', { label: 'Duck music and ambience (talk over)', combo: 'Alt+\\', group: 'music' });
 keys.define('fade.all', { label: 'Fade everything out', combo: 'Alt+0', group: 'music' });
+keys.define('effects.fade', { label: 'Fade the effects out (the music plays on)', combo: 'Alt+Shift+0', group: 'board' });
 keys.define('effects.stop', { label: 'Stop all effects', combo: 'Alt+Backspace', group: 'board' });
 keys.define('bank.prev', { label: 'Previous pad bank', combo: 'Alt+Up', group: 'board' });
 keys.define('bank.next', { label: 'Next pad bank', combo: 'Alt+Down', group: 'board' });

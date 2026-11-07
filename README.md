@@ -5,7 +5,9 @@ built around a sound console you can run from the keyboard without looking.
 
 - **Sound console**: everything that is playing, sound effects included (each with a scrub bar and a
   stop), the track's flags, the transport, your playlists, ambience and pads to fire, and a mixer.
-- **Soundboard**: effect pads laid out like your keyboard. Alt+Q fires the pad on Q.
+- **Soundboard**: effect pads laid out like your keyboard. Alt+Q fires the pad on Q. **Fade effects**
+  (here, in the top bar and in the Console's mixer, or Alt+Shift+0) fades every effect out while the music
+  and ambience play on; press it again mid-fade to stop them at once. Settings, Audio sets how long it takes.
 - **Playlists**: music and ambience playlists, listed apart, on number keys (Alt+1 to 9). Starting a
   track ends the one playing; a track's on-top button plays it over whatever is playing instead.
 - **Sound library and editor**: add files, download from links, trim, drop flags, set repeats and
@@ -83,6 +85,14 @@ interrupts the sound; the screen brings it back by itself, each sound from where
 tap first, a note says so and any tap does it. The device's play and pause buttons only play and pause
 the track (a stray "play" from a speaker used to pause it).
 
+**No sound?** Open **Settings, Audio, Sound check**. It plays a chime through the screen's sound engine, the
+same chime through a plain audio player, a short sound and a long one; say whether you heard each, and it
+tells you what's wrong (the iPad's volume or Silent mode, where Control Center sends the sound, or iPadOS
+holding a Home Screen app quiet, which **Restart the sound engine** there usually clears). **Copy the
+report** to send what it saw. The screen asks iPadOS to treat its sound as media playback, so Silent mode
+doesn't mute it (iPadOS 17 and later), and a playlist's next track, an ambience loop's next pass and a
+queued sound start by themselves without a tap.
+
 Sites that refuse to be shown inside another page open in a new tab on the iPad. Use Split View to keep
 them beside the screen.
 
@@ -134,6 +144,7 @@ Needs Python 3.10 or newer (already on this computer). Everything else installs 
 | Alt+- / Alt+= | Music quieter / louder |
 | Alt+\ | Duck music and ambience while you talk |
 | Alt+0 | Fade everything out |
+| Alt+Shift+0 | Fade the effects out; the music, ambience and sounds on top play on (press again to stop them at once) |
 | Alt+Backspace | Stop all effects |
 | Alt+Up / Alt+Down | Previous / next pad bank |
 | Alt+Enter | Maximise the pane you're in (Esc restores) |

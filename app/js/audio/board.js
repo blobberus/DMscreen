@@ -152,6 +152,7 @@ keys.onPad((key) => board.fire(key));
 keys.on('bank.prev', () => board.cycle(-1));
 keys.on('bank.next', () => board.cycle(1));
 keys.on('effects.stop', () => engine.stopEffects());
+keys.on('effects.fade', () => engine.fadeEffects());
 
 bus.on('library', () => board.reconcile());
 bus.on('site:docs', () => board.reconcile());

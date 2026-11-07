@@ -45,7 +45,7 @@ add_sounds.bat       + tools/add_sounds.py: adds Desktop\Sounds to Add\<Category
 extension/           optional Chrome/Edge MV3 "frame helper": strips XFO/CSP for sub-frames in DM tabs only
 app/index.html       shell: rail, top bar (deck + master), #workspace
 app/login.html       the gate (js/login.js, css/login.css)
-app/css/             tokens.css base.css shell.css panels.css (one prefix per panel: cn pd pl lb ed yt wb nt st sc)
+app/css/             tokens.css base.css shell.css panels.css (one prefix per panel: cn pd pl lb ed yt wb nt st sc ck)
 app/js/core/         dom util bus api state library keys kbd ui fader markdown
 app/js/audio/        engine.js (AudioContext, buses, voices), board.js (pads), playlists.js, wave.js, cue.js
                      (the shared preview button). The preview bus goes to master, or with settings.previewOutput
@@ -59,7 +59,7 @@ app/content/merchants.json  premade merchants (6 categories, 55 shops, ~1,670 it
                      own (don't copy the source's prose; the repo is public). Village/Town/Capital use the
                      cheap/normal/expensive price column and their locale's stock. Generated JSON: edit it directly
 app/js/dialogs/      settings.js shortcuts.js files.js (website: upload links, rename/move/new folder)
-                     volume.js (a sound's own volume, from its ⋯ menu)
+                     volume.js (a sound's own volume, from its ⋯ menu) soundcheck.js (Settings, Audio)
 app/sw.js            website offline copy (media/peaks cache-first with byte ranges; the rest network-first)
 app/js/core/         + mode.js (SITE, repo, IOS) gate.js (browser password check) github.js (REST,
                      commits) site.js (website data: library.json, setup, pending ops) vault.js zip.js
@@ -130,6 +130,24 @@ tools/index_sounds.py   the sounds repo's library.json + peaks/ (reuses build_si
   inside a tap; a loop's next pass is `starting` until it plays). `look()` runs on taps, visibility, focus,
   pageshow and devicechange. Media buttons (`sessionActions`): play only resumes a paused track, pause only
   pauses (both toggled before, so a speaker's stray "play" paused the music). `recoveries` logs what was done.
+  The iPad's rules (WebKit source, checked 2026-11-06): an <audio> made outside a tap may not play until a tap
+  (`RequireUserGestureForAudioRateChange` is skipped only for elements made inside one), so the deck's next
+  track, a loop's crossfade pass and a queued sound used to stay silent or end. Taps (`tapped`: touchend,
+  click, keydown, a mouse's pointerdown; a finger's pointerdown is no tap to iPadOS) top up `spares` (6 made in the
+  tap); `takeElement()` hands one to each MediaVoice (MediaElementSource made once per element, `dmNode`,
+  `dmCtx`) and `releasePair` gives it back (once: `released`) if it was a spare or has played (`dmPlayed`).
+  A pair's listeners and `seekReady` hang on its AbortController (`off`): a released element can be someone
+  else's a moment later, so nothing of the old use may touch it. `playbackSession()` sets
+  `navigator.audioSession.type = 'playback'` BEFORE the context is made and again on taps (iPadOS 17+: else
+  Web Audio is "ambient", muted by Silent mode on the built-in speaker while headphones still play);
+  `keepPlaybackOld()` loops a silent WAV where there is no audioSession. `unlock()` starts a silent sample
+  in each tap until the context runs. `restart()` (Settings, Audio, Sound check) makes a new context and
+  new elements after setting the session to 'auto' and closing the old one (an iPadOS Home Screen app can be
+  left silent while 'running'); everything stops, the deck keeps its queue, 'audio:restarted' re-preloads pads.
+  `fadeEffects(s)` fades every pad voice (settings.fadeEffects, 2 s; Alt+Shift+0; buttons in the top bar,
+  the Console's mixer and the Soundboard); a press while they fade `hurry()`s them. Sound check:
+  `dialogs/soundcheck.js` (`engine.facts()`, `testTone()` straight to the destination, a plain <audio> of
+  the same chime as a WAV, a short and a long library sound as previews; prefix `ck`).
 - `keys`: actions with Alt combos (event.code based); unused letters fire pads via `board.fire(key)`.
   Frames: cross-site iframes give the page no pointer events, so a frame counts as chosen when the pointer
   was last seen within 24px of it (or a fresh tap, a Tab, or a tap inside a same-origin frame). A frame
