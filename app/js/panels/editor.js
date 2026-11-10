@@ -418,13 +418,31 @@ export function createEditor({ onSelectSound } = {}) {
   }
   function saveFlags() {
     sound.flags.sort((x, y) => x.t - y.t);
+    flagsShown = JSON.stringify(sound.flags);
     storeFlags(sound.id, sound.flags);
     draw();
     renderFlags();
   }
+  // The flags as last listed here. A change made elsewhere (the Console's Flag button, the Flags dialog)
+  // differs from it, and the list and the marks follow; our own saves set it first, so they don't.
+  let flagsShown = '[]';
+  let flagsStale = false;
+  function followFlags(s) {
+    if (!sound || s.id !== sound.id || JSON.stringify(s.flags || []) === flagsShown) return;
+    sound = s;
+    drawFlags();
+    // never pull a label box out from under the typing: the list catches up when the focus leaves it
+    if (flagList.contains(document.activeElement)) { flagsStale = true; return; }
+    renderFlags();
+  }
+  flagList.addEventListener('focusout', () => requestAnimationFrame(() => {
+    if (flagsStale && !flagList.contains(document.activeElement)) { flagsStale = false; renderFlags(); }
+  }));
   function renderFlags() {
     clear(flagList);
     const flags = sound?.flags || [];
+    flagsShown = JSON.stringify(flags);
+    flagsStale = false;
     flagCount.textContent = flags.length ? String(flags.length) : '';
     if (!flags.length) {
       flagList.append(h('p', { class: 'meta ed-noflags' }, 'No flags yet. Play the sound and press F at each moment you want to jump to: the storm breaking, the chorus, the dragon’s roar.'));
@@ -434,7 +452,12 @@ export function createEditor({ onSelectSound } = {}) {
       const label = h('input', { class: 'input input-sm ed-flabel', value: f.label, 'aria-label': `Flag ${i + 1} label`, maxlength: 60 });
       // by id, in the sound's current list: each save hands the sound fresh copies, so `f` is out of date
       // after the first letter (only that letter was kept)
-      label.addEventListener('input', () => { sound.flags = withLabel(sound.flags, f.id, label.value || `Flag ${i + 1}`); storeFlags(sound.id, sound.flags); drawFlags(); });
+      label.addEventListener('input', () => {
+        sound.flags = withLabel(sound.flags, f.id, label.value || `Flag ${i + 1}`);
+        flagsShown = JSON.stringify(sound.flags);
+        storeFlags(sound.id, sound.flags);
+        drawFlags();
+      });
       label.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); waveBox.focus(); } });
       const time = h('input', { class: 'input input-sm ed-ftime num', value: fmtTime(f.t, { tenths: true }), 'aria-label': `Flag ${i + 1} time` });
       time.addEventListener('change', () => {
@@ -564,6 +587,7 @@ export function createEditor({ onSelectSound } = {}) {
   const offs = [
     bus.on('audio:tick', () => { if (sound && engine.preview?.sound.id === sound.id) drawHead(); }),
     bus.on('audio', () => sound && drawHead()),
+    bus.on('library:sound', followFlags),
     bus.on('state:settings', () => { colors = themeColors(); cache.key = null; overCache.key = null; draw(); }),
   ];
 
