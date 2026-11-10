@@ -48,6 +48,38 @@ export function withTime(flags, id, t) {
   return sortFlags((flags || []).map((f) => (f.id === id ? { ...f, t: roundTime(Math.max(0, t)) } : f)));
 }
 
+// A list of moments as text, one per line, the way a video's description gives its chapters:
+// "0:00 Intro", "1:23 - The battle", "[1:02:03] Night", "4. 12:05 Dawn", "The storm (3:15)".
+const STAMP = /(?:^|[\s([])((?:\d{1,2}:)?\d{1,2}:\d{2}(?:\.\d+)?)(?=$|[\s)\],.:;!?–—-])/;
+const toSeconds = (s) => s.split(':').map(Number).reduce((a, p) => a * 60 + p, 0);
+/** -> {items: [{t, label}], skipped: lines with no time or past `duration`} (sorted, one per moment). */
+export function parseFlagList(text, duration = Infinity) {
+  const items = [];
+  let skipped = 0;
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const m = STAMP.exec(line);
+    const t = m ? toSeconds(m[1]) : null;
+    if (t == null || t > duration) { skipped++; continue; }
+    // punctuation stuck to the time ("at 12:00!") goes with it; a name's own ("Charge! 1:00") stays
+    const label = (line.slice(0, m.index) + ' ' + line.slice(m.index + m[0].length).replace(/^[!?;,.]+/, ''))
+      .replace(/^\s*\d+[.)]\s+/, '')                 // a list number: "4. "
+      .replace(/[()[\]]/g, ' ')
+      .replace(/^[\s:–—|-]+|[\s:–—|-]+$/g, '')       // the dash or colon between time and name
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (items.some((x) => Math.abs(x.t - t) < NEAR)) { skipped++; continue; }
+    items.push({ t, label: label.slice(0, 60) });
+  }
+  return { items: items.sort((a, b) => a.t - b.t), skipped };
+}
+
+/** The flags as text, one "m:ss.t Name" per line (the same form parseFlagList reads back). */
+export function flagListText(flags, fmt) {
+  return sortFlags(flags).map((f) => `${fmt(f.t)} ${f.label}`).join('\n');
+}
+
 /** Where a playing voice is now, in seconds into its file (flags are kept in file time). */
 export const voiceTime = (voice) => (voice.from || 0) + (voice.position || 0);
 
