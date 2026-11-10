@@ -376,6 +376,7 @@ button.pd-key:active, .pd-key.is-hit { transform: translateY(1px); }
 .picker-tick { width: 18px; height: 18px; flex: none; display: grid; place-items: center; border: 1.5px solid var(--control); border-radius: 3px; }
 .picker-row.is-selected .picker-tick { background: var(--text); color: var(--pane); border-color: var(--text); }
 .picker-dur { width: 48px; text-align: right; }
+.picker-note { flex: none; white-space: nowrap; }
 
 /* ---------- Editor ------------------------------------------------------------------- */
 .ed { display: flex; flex-direction: column; gap: 10px; padding: 12px var(--pad-lg) var(--pad-lg); min-width: 0; }

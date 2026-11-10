@@ -320,7 +320,8 @@ export default function createConsole({ el, id, getState, setState }) {
     return h('button', {
       class: 'btn btn-sm cn-flagedit cn-flagpick', type: 'button', title: 'Choose a sound from the library to see and add its flags',
       onclick: async () => {
-        const id = await pickSound({ library, title: 'Flags for which sound?' });
+        const n = (s) => s.flags?.length || 0;
+        const id = await pickSound({ library, title: 'Flags for which sound?', note: (s) => (n(s) ? `${n(s)} ${n(s) === 1 ? 'flag' : 'flags'}` : '') });
         if (!id) return;
         openFlags(id, { voice: engine.playingNow().find((it) => it.id === id)?.voice || null });
       },

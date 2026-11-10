@@ -166,9 +166,9 @@ export function showMenu(anchor, items, { align = 'start', minWidth } = {}) {
 
 /**
  * Pick one or more sounds from the library.
- * Resolves to an array of ids (multi) or one id, or null.
+ * Resolves to an array of ids (multi) or one id, or null. `note(sound)` adds a word to each row ("3 flags").
  */
-export function pickSound({ library, title = 'Choose a sound', kind = null, multi = false, okLabel } = {}) {
+export function pickSound({ library, title = 'Choose a sound', kind = null, multi = false, okLabel, note = null } = {}) {
   return new Promise((resolve) => {
     const chosen = new Set();
     let filterKind = kind;
@@ -207,6 +207,7 @@ export function pickSound({ library, title = 'Choose a sound', kind = null, mult
         },
         multi ? h('span', { class: 'picker-tick' }, chosen.has(s.id) ? icon('check', 'icon-sm') : null) : null,
         h('span', { class: 'name truncate' }, s.name),
+        note ? h('span', { class: 'meta picker-note' }, note(s) || '') : null,
         h('span', { class: 'meta' }, { music: 'Music', ambience: 'Ambience', effect: 'Effect' }[s.kind]),
         h('span', { class: 'meta num picker-dur' }, fmtTime(s.duration)));
         list.append(row);
