@@ -8,7 +8,7 @@ import { library, KIND_LABEL } from '../core/library.js';
 import { toast, promptDialog, showMenu, openDialog } from '../core/ui.js';
 import { fmtTime, parseTime, clamp } from '../core/util.js';
 import { drawBars } from '../audio/wave.js';
-import { flagVoice, flagNear, voiceTime, withFlag, withLabel, withTime, withoutFlag, saveFlags } from '../core/flags.js';
+import { flagVoice, flagNear, voiceTime, withFlag, withLabel, withTime, withoutFlag, saveFlags, parseFlagList } from '../core/flags.js';
 
 const at = (t) => fmtTime(t, { tenths: true });
 const flagOf = (soundId, flagId) => library.get(soundId)?.flags?.find((x) => x.id === flagId) || null;
@@ -77,6 +77,44 @@ export function soundFlagsMenu(anchor, voice) {
     { label: `Drop a flag here (${at(voiceTime(voice))})`, icon: 'flag-add', onClick: () => dropFlag(voice) },
     { label: 'Flags…', icon: 'flag', hint: n ? String(n) : '', onClick: () => openFlags(s.id, { voice }) },
   ]);
+}
+
+/** Many flags at once from pasted text: a video description's chapter list, notes, another sound's
+ *  flags copied as text. Moments already flagged are left out. */
+export function pasteFlags(soundId, { onClose = null } = {}) {
+  const s = library.get(soundId);
+  if (!s) return null;
+  const area = h('textarea', { class: 'textarea fg-paste', rows: 8, spellcheck: false, placeholder: '0:00 Intro\n1:23 The battle begins\n4:05 Calm after the storm', 'aria-label': 'Times, one per line' });
+  const note = h('p', { class: 'field-hint fg-pastenote', role: 'status' });
+  const fresh = () => {
+    const now = library.get(soundId);
+    const { items, skipped } = parseFlagList(area.value, now?.duration ?? Infinity);
+    const add = items.filter((x) => !flagNear(now?.flags, x.t));
+    const left = skipped + items.length - add.length;
+    note.textContent = !area.value.trim() ? 'Paste or type one moment per line: a time (1:23 or 1:02:03), then its name.'
+      : `${add.length ? `Adds ${add.length} ${add.length === 1 ? 'flag' : 'flags'}` : 'Nothing to add'}${left ? ` (${left} ${left === 1 ? 'line' : 'lines'} left out: no time, past the end, or already flagged)` : ''}.`;
+    return add;
+  };
+  area.addEventListener('input', fresh);
+  fresh();
+  return openDialog({
+    title: `Paste times: ${s.name}`, className: 'fg-pastedialog', initialFocus: '.fg-paste',
+    body: h('div', { class: 'stack' },
+      h('p', { class: 'muted' }, 'A video’s chapter list works as it is: copy it from the description and paste it here.'), area, note),
+    actions: [
+      { label: 'Cancel' },
+      { label: 'Add flags', kind: 'primary', onClick: () => {
+        const add = fresh();
+        if (!add.length) { area.focus(); return false; }
+        let flags = library.get(soundId)?.flags || [];
+        for (const x of add) flags = withFlag(flags, x.t, x.label).flags;
+        saveFlags(soundId, flags);
+        toast(`Added ${add.length} ${add.length === 1 ? 'flag' : 'flags'} to ${s.name}.`, { type: 'ok' });
+        return undefined;
+      } },
+    ],
+    onClose: () => onClose?.(),
+  });
 }
 
 // ---- the Flags dialog: every flag of one sound ------------------------------------------------
@@ -295,7 +333,9 @@ export function openFlags(soundId, { voice = null, onClose = null } = {}) {
       h('span', { class: 'fg-addcap meta' }, 'New flag'),
       addTime, addLabel,
       h('button', { class: 'btn btn-sm', type: 'button', onclick: add }, icon('flag-add', 'icon-sm'), 'Add flag')),
-    addErr);
+    addErr,
+    h('div', { class: 'fg-tools' },
+      h('button', { class: 'btn btn-sm fg-pastebtn', type: 'button', title: 'Add many flags from a list of times, like a video’s chapters', onclick: () => pasteFlags(soundId) }, icon('playlist', 'icon-sm'), 'Paste a list of times…')));
   render();
   const d = openDialog({
     title: `Flags: ${s0.name}`, body, className: 'fg-dialog', initialFocus: '.fg-addtime',
