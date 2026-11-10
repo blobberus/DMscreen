@@ -85,15 +85,17 @@ export function openFlags(soundId, { voice = null } = {}) {
   const addTime = h('input', { class: 'input input-sm num fg-addtime', placeholder: '1:23.5', inputmode: 'decimal', 'aria-label': 'Time of the new flag' });
   const addLabel = h('input', { class: 'input input-sm fg-addlabel', placeholder: 'Name (optional)', maxlength: 60, 'aria-label': 'Name of the new flag' });
   const addErr = h('p', { class: 'field-hint fg-err', role: 'alert', hidden: true });
-  const playing = () => voice && ['playing', 'paused', 'loading'].includes(voice.state) && voice.sound.id === soundId;
-  if (playing()) addTime.value = at(voiceTime(voice));
+  // the voice of this sound playing at the table: the one it was opened for, or any (track, on top, pad)
+  const alive = (v) => v && v.sound.id === soundId && ['playing', 'paused', 'loading'].includes(v.state);
+  const live = () => (alive(voice) ? voice : engine.playingNow().find((it) => it.id === soundId)?.voice || null);
+  if (live()) addTime.value = at(voiceTime(live()));
   const fail = (text) => { addErr.textContent = text; addErr.hidden = !text; };
 
   function add() {
     const s = library.get(soundId);
     if (!s) return;
     const typed = addTime.value.trim();
-    const t = typed ? parseTime(typed) : playing() ? voiceTime(voice) : null;
+    const t = typed ? parseTime(typed) : live() ? voiceTime(live()) : null;
     if (t == null) { fail('Type when it is, like 1:23.5 or 83.5 (minutes:seconds).'); addTime.focus(); return; }
     if (t > dur()) { fail(`That is past the end: ${s.name} is ${at(dur())} long.`); addTime.focus(); return; }
     const r = withFlag(s.flags, t, addLabel.value);
@@ -114,7 +116,22 @@ export function openFlags(soundId, { voice = null } = {}) {
   const wave = h('canvas', { class: 'fg-wave', 'aria-hidden': 'true' });
   const marks = h('div', { class: 'fg-marks', 'aria-hidden': 'true' });
   const pickMark = h('i', { class: 'fg-pick', hidden: true });
-  const waveBox = h('div', { class: 'fg-wavebox', title: 'Click to put the new flag here' }, wave, marks, pickMark);
+  const playhead = h('i', { class: 'fg-playhead', hidden: true });
+  const waveBox = h('div', { class: 'fg-wavebox', title: 'Click to put the new flag here' }, wave, marks, pickMark, playhead);
+  // where the sound is while it plays at the table or in a preview: moved with a transform, in whole
+  // pixels, from a width the ResizeObserver keeps (nothing measured per frame)
+  let waveW = 0;
+  let headX = -1;
+  let headVoice = null;
+  const findHead = () => { headVoice = engine.preview?.sound.id === soundId && alive(engine.preview) ? engine.preview : live(); };
+  function tickHead() {
+    const v = headVoice;
+    const show = !!v && alive(v) && waveW > 0;
+    if (playhead.hidden === show) playhead.hidden = !show;
+    if (!show) { headX = -1; return; }
+    const x = Math.round(clamp(voiceTime(v) / (dur() || 1), 0, 1) * waveW);
+    if (x !== headX) { headX = x; playhead.style.transform = `translateX(${x}px)`; }
+  }
   let peaks = null;
   const pct = (t) => `${(clamp(t / (dur() || 1), 0, 1) * 100).toFixed(3)}%`;
   function drawWave() {
@@ -137,7 +154,7 @@ export function openFlags(soundId, { voice = null } = {}) {
     drawMarks();
     addLabel.focus();
   });
-  const ro = new ResizeObserver(() => drawWave());
+  const ro = new ResizeObserver(() => { waveW = wave.clientWidth; headX = -1; drawWave(); tickHead(); });
   library.peaks(soundId).then((p) => { peaks = p; drawWave(); }).catch(() => { /* drawn flat */ });
 
   // The rows follow changes made elsewhere (a flag dropped with Alt+Shift+F while this is open), but are
@@ -191,9 +208,10 @@ export function openFlags(soundId, { voice = null } = {}) {
     const s = library.get(soundId);
     const f = flagOf(soundId, flagId);
     if (!s || !f) return;
-    if (playing()) {
-      if (voice === engine.music.voice) engine.jumpTo(f.t);
-      else { if (voice.state === 'paused') voice.resume(); voice.seek(Math.max(0, f.t - voice.from)); }
+    const v = live();
+    if (v) {
+      if (v === engine.music.voice) engine.jumpTo(f.t);
+      else { if (v.state === 'paused') v.resume(); v.seek(Math.max(0, f.t - v.from)); }
       return;
     }
     if (engine.previewing(soundId) && previewFlag === flagId) { engine.stopPreview(); return; }
@@ -210,7 +228,9 @@ export function openFlags(soundId, { voice = null } = {}) {
       if (btn && btn.dataset.icon !== want) { btn.dataset.icon = want; setIcon(btn.querySelector('svg'), want); }
     }
   }
-  const offAudio = bus.on('audio', syncPlay);
+  const offAudio = bus.on('audio', () => { syncPlay(); findHead(); tickHead(); });
+  const offTick = bus.on('audio:tick', tickHead);
+  findHead();
   list.addEventListener('focusout', () => requestAnimationFrame(() => { if (stale && !list.contains(document.activeElement)) render(); }));
   const off = bus.on('library:sound', (s) => {
     if (s.id !== soundId) return;
@@ -236,7 +256,7 @@ export function openFlags(soundId, { voice = null } = {}) {
   const d = openDialog({
     title: `Flags: ${s0.name}`, body, className: 'fg-dialog', initialFocus: '.fg-addtime',
     actions: [{ label: 'Done', kind: 'primary' }],
-    onClose: () => { off(); offAudio(); ro.disconnect(); if (engine.previewing(soundId)) engine.stopPreview(); },
+    onClose: () => { off(); offAudio(); offTick(); ro.disconnect(); if (engine.previewing(soundId)) engine.stopPreview(); },
   });
   ro.observe(wave);
   return d;
