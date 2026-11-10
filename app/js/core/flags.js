@@ -46,6 +46,20 @@ export function withTime(flags, id, t) {
   return sortFlags((flags || []).map((f) => (f.id === id ? { ...f, t: roundTime(Math.max(0, t)) } : f)));
 }
 
+/** Where a playing voice is now, in seconds into its file (flags are kept in file time). */
+export const voiceTime = (voice) => (voice.from || 0) + (voice.position || 0);
+
+/** Drop a flag where a playing voice is now and save it.
+ *  -> {sound, t, flags, flag} ({flag: null, near} when one is already there), or null with no sound. */
+export function flagVoice(voice, label) {
+  const sound = voice && library.get(voice.sound.id);
+  if (!sound) return null;
+  const t = voiceTime(voice);
+  const r = withFlag(sound.flags, t, label);
+  if (r.flag) saveFlags(sound.id, r.flags);
+  return { sound, t, ...r };
+}
+
 /** Save a sound's flags (copies, sorted). */
 export function saveFlags(id, flags) {
   library.update(id, { flags: sortFlags(flags).map((f) => ({ ...f })) });
