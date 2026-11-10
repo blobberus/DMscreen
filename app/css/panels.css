@@ -719,3 +719,13 @@ button.pd-key:active, .pd-key.is-hit { transform: translateY(1px); }
 .fg-add { display: grid; grid-template-columns: auto 84px minmax(0, 1fr) auto; align-items: center; gap: 6px; padding-top: 12px; border-top: 1px solid var(--rule); }
 .fg-addcap { white-space: nowrap; }
 .fg-err { margin: -4px 0 0; color: var(--warn); }
+/* fingers (the iPad): bigger boxes and buttons in the dialog and the Console's flag row; 16px text so
+   Safari doesn't zoom the page into a box on focus */
+@media (pointer: coarse) {
+  .fg-row { min-height: 46px; }
+  .fg .input-sm { min-height: 38px; font-size: 16px; }
+  .fg .btn-sm { height: 38px; }
+  .fg .btn-icon.btn-sm { width: 38px; height: 38px; }
+  .fg-wavebox { height: 72px; }
+  .cn-flagbtn, .cn-flagedit { height: 36px; }
+}
