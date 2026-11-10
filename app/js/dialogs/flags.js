@@ -76,7 +76,7 @@ export function soundFlagsMenu(anchor, voice) {
 // ---- the Flags dialog: every flag of one sound ------------------------------------------------
 /** Name, move, delete and add a sound's flags without the editor. With a voice of that sound playing,
  *  the new flag's time starts where it is. */
-export function openFlags(soundId, { voice = null } = {}) {
+export function openFlags(soundId, { voice = null, onClose = null } = {}) {
   const s0 = library.get(soundId);
   if (!s0) return null;
   const dur = () => library.get(soundId)?.duration || 0;
@@ -267,7 +267,7 @@ export function openFlags(soundId, { voice = null } = {}) {
   const d = openDialog({
     title: `Flags: ${s0.name}`, body, className: 'fg-dialog', initialFocus: '.fg-addtime',
     actions: [{ label: 'Done', kind: 'primary' }],
-    onClose: () => { off(); offAudio(); offTick(); ro.disconnect(); if (engine.previewing(soundId)) engine.stopPreview(); },
+    onClose: () => { off(); offAudio(); offTick(); ro.disconnect(); if (engine.previewing(soundId)) engine.stopPreview(); onClose?.(); },
   });
   ro.observe(wave);
   return d;

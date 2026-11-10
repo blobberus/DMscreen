@@ -237,6 +237,8 @@ button.pd-key:active, .pd-key.is-hit { transform: translateY(1px); }
 /* Pad editor */
 .pd-edit { display: flex; flex-direction: column; gap: 14px; }
 .pd-soundrow { display: flex; gap: 8px; }
+.pd-flagsrow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin-top: -4px; }
+.pd-flagsrow .btn { max-width: 100%; }
 .pd-soundbtn { flex: 1; justify-content: flex-start; min-width: 0; }
 .pd-volrow { display: flex; align-items: center; gap: 10px; }
 .pd-volnum { width: 44px; text-align: right; color: var(--muted); }

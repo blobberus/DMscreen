@@ -14,6 +14,7 @@ import { board, BOARD_LAYOUTS, PIGMENTS, MODES } from '../audio/board.js';
 import { playlists } from '../audio/playlists.js';
 import { SITE } from '../core/mode.js';
 import { newFolder, renameFolder, folderItems, addButton, folderLabel } from '../dialogs/files.js';
+import { openFlags } from '../dialogs/flags.js';
 
 const SHORT = {
   'music.toggle': 'Play / pause', 'music.prev': 'Previous track', 'music.next': 'Next track',
@@ -271,7 +272,10 @@ export default function createPads({ el }) {
       body.append(h('div', { class: 'field-row' },
         h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Start'), startSel),
         h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Stop'), endSel)));
-      if (!flags.length) body.append(h('p', { class: 'field-hint' }, 'Add flags to this sound in the Sound library to start pads part-way through, or to cut one long recording into many pads.'));
+      // the sound's flags from here: the Start list above shows the new ones when the Flags dialog closes
+      body.append(h('div', { class: 'pd-flagsrow' },
+        h('button', { class: 'btn btn-sm', type: 'button', onclick: () => openFlags(s.id, { onClose: () => draw() }) }, icon('flag', 'icon-sm'), flags.length ? `Flags of ${s.name}…` : 'Add flags…'),
+        flags.length ? null : h('span', { class: 'field-hint' }, 'Flags let a pad start part-way through, or cut one long recording into many pads.')));
 
       const vol = h('input', { class: 'range', type: 'range', min: 0, max: MAX_VOLUME * 100, step: 1, value: Math.round(Math.min(pad.volume ?? 1, MAX_VOLUME) * 100) });
       const volNum = h('span', { class: 'num pd-volnum' }, `${vol.value}%`);
