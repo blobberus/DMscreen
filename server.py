@@ -678,12 +678,43 @@ def fmt_section(seconds):
     return f'{int(seconds // 60)}:{seconds % 60:06.3f}'
 
 
+def chapter_flags(chapters, start=None, end=None):
+    """A video's chapters (yt-dlp's [{start_time, end_time, title}]) as flags [{id, t, label}]. With only a
+    stretch downloaded they are shifted to it; a chapter already under way where it starts gets a flag at 0."""
+    if not isinstance(chapters, list):
+        return []
+    s0 = float(start or 0)
+    stop = None if end is None else float(end) - s0
+    out = []
+    for c in chapters:
+        if not isinstance(c, dict):
+            continue
+        try:
+            t = float(c.get('start_time')) - s0
+            t_end = float(c['end_time']) - s0 if c.get('end_time') is not None else None
+        except (TypeError, ValueError):
+            continue
+        if t < 0:
+            if t_end is None or t_end <= 0:
+                continue
+            t = 0.0
+        if stop is not None and t >= stop:
+            continue
+        if any(abs(f['t'] - t) < 0.05 for f in out):
+            continue
+        # yt-dlp names a chapter without a title "<Untitled Chapter 3>"
+        label = re.sub(r'^<Untitled Chapter (\d+)>$', r'Chapter \1', clean_name(c.get('title') or '', ''))[:60] or f'Chapter {len(out) + 1}'
+        out.append({'id': new_id('f'), 't': round(t, 3), 'label': label})
+    return sorted(out, key=lambda f: f['t'])
+
+
 def run_job(job):
     tmpdir = TMP / job['id']
     tmpdir.mkdir(parents=True, exist_ok=True)
     cmd = ytdlp_cmd() + [
         '--no-simulate', '--progress', '--progress-template', 'download:@@progress %(progress._percent_str)s',
         '--print', 'before_dl:@@title %(title)s', '--print', 'after_move:@@file %(filepath)s',
+        '--print', 'video:@@chapters %(chapters)j',
         '-f', 'bestaudio/best', '-x', '--audio-format', 'mp3', '--audio-quality', '2',
         '-o', str(tmpdir / '%(id).80s.%(ext)s'),
     ]
@@ -714,6 +745,11 @@ def run_job(job):
                 job['status'] = 'downloading'
             elif line.startswith('@@file'):
                 filepath = line[len('@@file'):].strip()
+            elif line.startswith('@@chapters'):
+                try:
+                    job['_chapters'] = json.loads(line[len('@@chapters'):].strip())
+                except ValueError:
+                    job['_chapters'] = None          # "NA": the page has no chapters
             else:
                 lines.append(line)
                 del lines[:-40]
@@ -731,8 +767,9 @@ def run_job(job):
         dest = AUDIO / f'{sid}.mp3'
         shutil.move(filepath, dest)
         title = job.get('name') or job.get('title') or 'Downloaded sound'
-        s = add_sound(dest, title, kind=job.get('kind'), source=job['url'])
-        job.update(status='done', progress=1.0, soundId=s['id'], title=s['name'])
+        flags = chapter_flags(job.get('_chapters'), job.get('start'), job.get('end')) if job.get('chapters', True) else []
+        s = add_sound(dest, title, kind=job.get('kind'), source=job['url'], flags=flags)
+        job.update(status='done', progress=1.0, soundId=s['id'], title=s['name'], chapterFlags=len(flags))
     except Exception as exc:
         job.update(status='error', errorCode='failed', error=str(exc))
     finally:
@@ -761,7 +798,8 @@ def download():
     job = {
         'id': new_id('job'), 'url': url, 'kind': body.get('kind') if body.get('kind') in KINDS else None,
         'name': clean_name(body.get('name') or '', '') or None, 'start': num(body.get('start')),
-        'end': num(body.get('end')), 'title': body.get('name') or url, 'status': 'queued', 'progress': 0.0,
+        'end': num(body.get('end')), 'chapters': body.get('chapters', True) is not False,
+        'title': body.get('name') or url, 'status': 'queued', 'progress': 0.0,
         'error': None, 'errorCode': None, 'soundId': None, 'created': time.time(),
     }
     JOBS[job['id']] = job
