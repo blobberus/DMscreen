@@ -10,6 +10,7 @@ import { library, KIND_LABEL, MAX_VOLUME } from '../core/library.js';
 import { promptDialog, showMenu, toast } from '../core/ui.js';
 import { clamp, fmtTime, parseTime, hostOf } from '../core/util.js';
 import { withFlag, withoutFlag, withLabel, withTime, saveFlags as storeFlags } from '../core/flags.js';
+import { pasteFlags, copyFlags } from '../dialogs/flags.js';
 import { engine } from '../audio/engine.js';
 import { drawBars, themeColors, fitCanvas, tickStep } from '../audio/wave.js';
 import { SITE } from '../core/mode.js';
@@ -75,9 +76,13 @@ export function createEditor({ onSelectSound } = {}) {
 
   const flagList = h('div', { class: 'ed-flaglist' });
   const flagCount = h('span', { class: 'meta num' });
+  // many at once from a list of times (a video's chapters), or the flags out as text: the Flags dialog's tools
+  const flagTools = h('span', { class: 'ed-flagtools' },
+    h('button', { class: 'btn btn-sm', type: 'button', title: 'Add many flags from a list of times, like a video’s chapters', onclick: () => sound && pasteFlags(sound.id) }, icon('playlist', 'icon-sm'), 'Paste times…'),
+    h('button', { class: 'btn-icon btn-sm', type: 'button', title: 'Copy the flags as text', 'aria-label': 'Copy the flags as text', onclick: () => sound && copyFlags(sound.id) }, icon('copy', 'icon-sm')));
   const settings = h('div', { class: 'ed-settings' });
   const cols = h('div', { class: 'ed-cols' },
-    h('section', { class: 'ed-sec' }, h('div', { class: 'ed-sechead' }, h('h3', { class: 'ed-h' }, 'Flags'), flagCount), flagList),
+    h('section', { class: 'ed-sec' }, h('div', { class: 'ed-sechead' }, h('h3', { class: 'ed-h' }, 'Flags'), flagCount, flagTools), flagList),
     h('section', { class: 'ed-sec' }, h('div', { class: 'ed-sechead' }, h('h3', { class: 'ed-h' }, 'Playback')), settings));
 
   root.append(head, waveBox, tools, selBar, cols);

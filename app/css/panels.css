@@ -425,6 +425,9 @@ button.pd-key:active, .pd-key.is-hit { transform: translateY(1px); }
 .ed-cols { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 24px; padding-top: 6px; }
 .ed-sec { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .ed-sechead { display: flex; align-items: baseline; gap: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--rule); }
+.ed-flagtools { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; align-self: center; }
+.ed-flagtools .btn { color: var(--muted); }
+.ed-flagtools .btn:hover { color: var(--text); }
 .ed-h { font: 500 15px / 1.2 var(--font-ui); }
 .ed-frow { display: grid; grid-template-columns: 22px minmax(0, 1fr) 76px auto auto; align-items: center; gap: 6px; min-height: 38px; }
 .ed-frow.is-selected .ed-fnum { color: var(--accent); }
