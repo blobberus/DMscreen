@@ -45,8 +45,8 @@ add_sounds.bat       + tools/add_sounds.py: adds Desktop\Sounds to Add\<Category
 extension/           optional Chrome/Edge MV3 "frame helper": strips XFO/CSP for sub-frames in DM tabs only
 app/index.html       shell: rail, top bar (deck + master), #workspace
 app/login.html       the gate (js/login.js, css/login.css)
-app/css/             tokens.css base.css shell.css panels.css (one prefix per panel: cn pd pl lb ed yt wb nt st sc ck)
-app/js/core/         dom util bus api state library keys kbd ui fader markdown
+app/css/             tokens.css base.css shell.css panels.css (one prefix per panel: cn pd pl lb ed yt wb nt st sc ck fg)
+app/js/core/         dom util bus api state library keys kbd ui fader markdown flags (a sound's flags: pure helpers)
 app/js/audio/        engine.js (AudioContext, buses, voices), board.js (pads), playlists.js, wave.js, cue.js
                      (the shared preview button). The preview bus goes to master, or with settings.previewOutput
                      through a MediaStream to an <audio> with setSinkId; a chosen output that's gone = silent
@@ -60,6 +60,8 @@ app/content/merchants.json  premade merchants (6 categories, 55 shops, ~1,670 it
                      cheap/normal/expensive price column and their locale's stock. Generated JSON: edit it directly
 app/js/dialogs/      settings.js shortcuts.js files.js (website: upload links, rename/move/new folder)
                      volume.js (a sound's own volume, from its ⋯ menu) soundcheck.js (Settings, Audio)
+                     flags.js (dropFlag: a flag on a playing voice + its toast; the flag menus; openFlags:
+                     the Flags dialog for any sound, prefix fg)
 app/sw.js            website offline copy (media/peaks cache-first with byte ranges; the rest network-first)
 app/js/core/         + mode.js (SITE, repo, IOS) gate.js (browser password check) github.js (REST,
                      commits) site.js (website data: library.json, setup, pending ops) vault.js zip.js
@@ -79,6 +81,19 @@ tools/index_sounds.py   the sounds repo's library.json + peaks/ (reuses build_si
 - `library` (client): `list/get/update(id, patch)` (debounced PATCH), `peaks(id)`, `upload`, `clip`,
   `download`, jobs polling. Sound fields: name kind trimStart trimEnd flags[{id,t,label}] repeat (1 once,
   N times, 0 forever) volume fadeIn fadeOut loopFade tags.
+- Flags (t = seconds into the file, not the trimmed part) change only through `core/flags.js`: `withFlag`
+  / `withLabel` / `withTime` / `withoutFlag` return a new sorted list, `saveFlags(id, list)` saves it.
+  `library.update` hands the sound fresh copies on every save, so change a flag by id in the sound's
+  current list, never through an object held from before (the editor's label box kept only the first
+  letter typed). Two flags within `NEAR` (0.05 s) are one moment; a live drop (`flagVoice`: the Console's
+  flag buttons, Alt+Shift+F `flag.add`, the dialog's Drop a flag now) uses `LIVE_NEAR` (0.4 s) so a
+  double tap is one flag. Flags can be added from the Console (transport button, each Playing row, the
+  Flags row: Edit flags / Flags for a sound… through `pickSound`), the Flags dialog (also in the Sound
+  library's, a playlist track's and a pad's menus) and the editor. Everything showing flags follows
+  'library:sound' (Console, editor, library rows, the dialog) and never rebuilds a list under the typing:
+  it catches up when the focus leaves.
+- Dialogs stack (`dialogStack` in ui.js): Escape closes only the top one, and not while a menu is open
+  over it (every dialog listened on the document, so one Escape closed them all).
 - `engine`: ONE deck (`engine.music`, a `Deck`) plays any playlist (music or ambience) or single track;
   starting one ends the one before (the user's rule: a playlist never plays its sounds at once). A
   sound plays on its kind's bus; a loop-forever sound plays once per pass on the deck. Sounds "on top"
