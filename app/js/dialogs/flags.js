@@ -5,7 +5,7 @@ import { h, icon, clear, setIcon } from '../core/dom.js';
 import { bus } from '../core/bus.js';
 import { engine } from '../audio/engine.js';
 import { library, KIND_LABEL } from '../core/library.js';
-import { toast, promptDialog, showMenu, openDialog } from '../core/ui.js';
+import { toast, promptDialog, showMenu, openDialog, confirmDialog } from '../core/ui.js';
 import { fmtTime, parseTime, clamp } from '../core/util.js';
 import { drawBars } from '../audio/wave.js';
 import { flagVoice, flagNear, voiceTime, withFlag, withLabel, withTime, withoutFlag, saveFlags, parseFlagList, flagListText } from '../core/flags.js';
@@ -252,6 +252,7 @@ export function openFlags(soundId, { voice = null, onClose = null } = {}) {
     shown = JSON.stringify(flags);
     stale = false;
     count.textContent = flags.length ? `${flags.length} ${flags.length === 1 ? 'flag' : 'flags'}` : '';
+    copyBtn.hidden = clearBtn.hidden = !flags.length;
     clear(list);
     if (!flags.length) list.append(h('p', { class: 'meta fg-none' }, 'No flags yet. Click the waveform or type a time below and press Add flag, or drop one while it plays.'));
     flags.forEach((f, i) => list.append(row(f, i)));
@@ -342,6 +343,20 @@ export function openFlags(soundId, { voice = null, onClose = null } = {}) {
     class: 'btn btn-sm fg-copybtn', type: 'button', title: 'Copy the flags as text, one "time name" per line',
     onclick: () => copyFlags(soundId),
   }, icon('copy', 'icon-sm'), 'Copy as text');
+  // all at once (after pasting the wrong list, say), asked first and undoable from the toast
+  const clearBtn = h('button', {
+    class: 'btn btn-sm fg-clearbtn', type: 'button', title: 'Delete every flag of this sound',
+    onclick: async () => {
+      const s = library.get(soundId);
+      const before = (s?.flags || []).map((f) => ({ ...f }));
+      if (!before.length) return;
+      const ok = await confirmDialog(`Delete all ${before.length} flags of ${s.name}? Pads set to stop at the next flag will play to the end.`, { title: 'Delete every flag?', okLabel: 'Delete all', danger: true });
+      if (!ok) return;
+      saveFlags(soundId, []);
+      render();
+      toast(`Deleted ${before.length} flags of ${s.name}.`, { timeout: 8000, action: { label: 'Undo', run: () => { if (library.get(soundId)) { saveFlags(soundId, before); render(); } } } });
+    },
+  }, icon('trash', 'icon-sm'), 'Delete all…');
   const [from, to] = library.region(s0);
   const trimmed = from > 0.01 || to < (s0.duration || 0) - 0.01;
   const body = h('div', { class: 'fg' },
@@ -357,7 +372,7 @@ export function openFlags(soundId, { voice = null, onClose = null } = {}) {
     addErr,
     h('div', { class: 'fg-tools' },
       h('button', { class: 'btn btn-sm fg-pastebtn', type: 'button', title: 'Add many flags from a list of times, like a video’s chapters', onclick: () => pasteFlags(soundId) }, icon('playlist', 'icon-sm'), 'Paste a list of times…'),
-      copyBtn));
+      copyBtn, clearBtn));
   render();
   const d = openDialog({
     title: `Flags: ${s0.name}`, body, className: 'fg-dialog', initialFocus: '.fg-addtime',
