@@ -11,6 +11,7 @@ import { fmtTime, parseTime, hostOf } from '../core/util.js';
 import { engine } from '../audio/engine.js';
 import { previewButton, onTopButton, queueButton, syncPreviewButtons } from '../audio/cue.js';
 import { volumeDialog } from '../dialogs/volume.js';
+import { openFlags } from '../dialogs/flags.js';
 import { board, ROWS } from '../audio/board.js';
 import { playlists } from '../audio/playlists.js';
 import { createEditor } from './editor.js';
@@ -280,6 +281,7 @@ export default function createLibrary({ el, getState, setState, workspace }) {
       s.kind === 'effect' ? null : { label: engine.layerOn(s.id) ? 'Stop it on top' : 'Play on top of what is playing', icon: engine.layerOn(s.id) ? 'stop' : 'layers', onClick: () => engine.toggleLayer(s.id) },
       { label: engine.previewing(s.id) ? 'Stop the preview' : 'Preview', icon: 'headphones', hint: engine.previewRoute === 'device' ? 'only you' : '', onClick: () => engine.togglePreview(s) },
       { label: 'Open in the editor', icon: 'edit', onClick: () => select(s.id) },
+      { label: 'Flags…', icon: 'flag', hint: s.flags?.length ? String(s.flags.length) : '', onClick: () => openFlags(s.id) },
       SITE ? null : { label: 'Volume…', icon: 'volume', hint: `${Math.round((s.volume ?? 1) * 100)}%`, onClick: () => volumeDialog(s) },
       lists.length ? { label: 'Add to a playlist', icon: 'playlist', submenu: lists } : null,
       empty.length ? { label: `Put on a pad (${bank.name})`, icon: 'keyboard', submenu: empty.map((k) => ({ label: `Key ${k}`, onClick: () => {
