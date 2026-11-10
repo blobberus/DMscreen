@@ -45,7 +45,9 @@
 .cn-flagbtn:hover { border-color: var(--control-hover); }
 .cn-flagbtn.is-current::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 1px; background: var(--accent); }
 .cn-flagbtn .kbd { height: 18px; font-size: 12px; }
-.cn-noflags { padding: 2px 0; }
+.cn-noflags { flex: 1 1 260px; padding: 2px 0; }
+.cn-flagedit { height: 30px; color: var(--muted); }
+.cn-flagedit:hover { color: var(--text); }
 .cn-noflags-ic { display: inline-block; vertical-align: -3px; color: var(--text); }
 .cn-noflags .kbd { height: 18px; font-size: 12px; vertical-align: 1px; }
 .cn-plwrap { display: flex; align-items: flex-start; gap: 12px; padding-top: 10px; border-top: 1px solid var(--rule); min-width: 0; }
@@ -689,3 +691,17 @@ button.pd-key:active, .pd-key.is-hit { transform: translateY(1px); }
 .sc-h { font: 500 14px / 1.2 var(--font-ui); color: var(--faint); padding: 10px 0 6px; }
 .sc-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 34px; border-bottom: 1px solid var(--rule); }
 .sc-keys { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+
+/* ---------- Flags dialog (dialogs/flags.js): every flag of one sound ------------------------ */
+.fg-dialog { width: min(580px, 100%); }
+.fg { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.fg-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.fg-count { flex: none; }
+.fg-list { display: flex; flex-direction: column; gap: 4px; max-height: min(44vh, 400px); overflow: auto; margin: 0 -4px; padding: 0 4px; }
+.fg-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) 84px auto; align-items: center; gap: 6px; min-height: 38px; }
+.fg-num { text-align: right; font-size: 13px; }
+.fg-time, .fg-addtime { text-align: right; }
+.fg-none { padding: 6px 0; }
+.fg-add { display: grid; grid-template-columns: auto 84px minmax(0, 1fr) auto; align-items: center; gap: 6px; padding-top: 12px; border-top: 1px solid var(--rule); }
+.fg-addcap { white-space: nowrap; }
+.fg-err { margin: -4px 0 0; color: var(--warn); }

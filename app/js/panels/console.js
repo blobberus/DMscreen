@@ -14,7 +14,7 @@ import { engine, SPEED_MIN, SPEED_MAX } from '../audio/engine.js';
 import { playlists, REPEAT } from '../audio/playlists.js';
 import { board } from '../audio/board.js';
 import { drawBars, themeColors, timeToX } from '../audio/wave.js';
-import { dropFlag, flagMenu } from '../dialogs/flags.js';
+import { dropFlag, flagMenu, openFlags } from '../dialogs/flags.js';
 
 export default function createConsole({ el, id, getState, setState }) {
   const root = h('div', { class: 'cn' });
@@ -291,7 +291,6 @@ export default function createConsole({ el, id, getState, setState }) {
       const combo = keys.combo('flag.add');
       flagList.append(h('p', { class: 'meta cn-noflags' }, 'No flags in this track yet. Press ', icon('flag-add', 'icon-sm cn-noflags-ic'),
         combo ? [' or ', kbd(combo)] : null, ' at a moment you will want again, and jump back to it from here.'));
-      return;
     }
     flags.forEach((f, i) => {
       flagList.append(h('button', {
@@ -303,6 +302,11 @@ export default function createConsole({ el, id, getState, setState }) {
         h('span', { class: 'truncate' }, f.label),
         h('span', { class: 'time faint' }, fmtTime(f.t))));
     });
+    // every flag of the track (outside the trimmed part too), to name, retime or add by time
+    flagList.append(h('button', {
+      class: 'btn btn-sm cn-flagedit', type: 'button', title: 'Name, move, delete or add this track’s flags by time',
+      onclick: () => { const v = engine.music.voice; if (v) openFlags(v.sound.id, { voice: v }); },
+    }, icon('edit', 'icon-sm'), flags.length ? 'Edit flags' : 'Add by time'));
   }
   let lastPos = '';
   let lastFlag = -2;
