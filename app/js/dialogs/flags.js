@@ -109,6 +109,20 @@ export function openFlags(soundId, { voice = null, onClose = null } = {}) {
     addTime.focus();
   }
   for (const box of [addTime, addLabel]) box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+  // ↑ / ↓ in a time box move it by a tenth of a second (Shift: a second), within the sound
+  function nudger(box, done) {
+    box.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      // an empty New flag box starts from where the sound is playing, or from the start
+      const t = box.value.trim() ? parseTime(box.value) : box === addTime ? (live() ? voiceTime(live()) : 0) : null;
+      if (t == null) return;
+      e.preventDefault();
+      const step = (e.shiftKey ? 1 : 0.1) * (e.key === 'ArrowUp' ? 1 : -1);
+      box.value = at(clamp(Math.round((t + step) * 10) / 10, 0, dur()));
+      done();
+    });
+  }
+  nudger(addTime, () => { fail(''); drawMarks(); });
   addTime.addEventListener('input', () => { fail(''); drawMarks(); });
 
   // The whole sound's waveform (the trimmed-off ends dimmed) with its flags marked; a click puts the new
@@ -195,17 +209,30 @@ export function openFlags(soundId, { voice = null, onClose = null } = {}) {
     const time = h('input', { class: 'input input-sm num fg-time', value: at(f.t), inputmode: 'decimal', 'aria-label': `Flag ${i + 1} time` });
     time.addEventListener('change', () => {
       const s = library.get(soundId);
+      const was = flagOf(soundId, f.id);
+      if (!s || !was) return;
       const t = parseTime(time.value);
       const clash = t == null ? null : flagNear(s.flags.filter((x) => x.id !== f.id), t);
       if (t == null || t > dur() || clash) {
         toast(t == null ? 'Type a time like 1:23.5.' : clash ? `${clash.label} is already at ${at(clash.t)}.` : `That is past the end (${at(dur())}).`);
-        time.value = at(f.t);
+        time.value = at(was.t);
         return;
       }
-      saveFlags(soundId, withTime(s.flags, f.id, t));
-      render();
+      const next = withTime(s.flags, f.id, t);
+      const reordered = next.map((x) => x.id).join() !== s.flags.map((x) => x.id).join();
+      shown = JSON.stringify(next);
+      saveFlags(soundId, next);
+      time.value = at(t);
+      drawMarks();
+      // the rows are renumbered only when the order changed, and the box keeps the focus (↑ ↓ go on)
+      if (reordered) {
+        const focused = document.activeElement === time;
+        render();
+        if (focused) list.querySelector(`[data-flag="${CSS.escape(f.id)}"] .fg-time`)?.focus();
+      }
     });
     for (const box of [label, time]) box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
+    nudger(time, () => time.dispatchEvent(new Event('change')));
     return h('div', { class: 'fg-row', role: 'listitem', 'data-flag': f.id },
       h('span', { class: 'fg-num num faint' }, String(i + 1)),
       label, time,
