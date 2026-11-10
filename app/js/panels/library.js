@@ -3,7 +3,7 @@
 // the pane is narrow). Drag a row onto a pad or a playlist.
 // On the website the list is the repo's folders, each with an Add button that opens GitHub's upload
 // page for it; renaming and moving are commits (dialogs/files.js).
-import { h, icon, clear, setIcon } from '../core/dom.js';
+import { h, icon, clear, setIcon, setText } from '../core/dom.js';
 import { bus } from '../core/bus.js';
 import { library, KIND_LABEL } from '../core/library.js';
 import { openDialog, showMenu, toast } from '../core/ui.js';
@@ -237,6 +237,9 @@ export default function createLibrary({ el, getState, setState, workspace }) {
     }
   }
 
+  /** A row's second line: kind · flags · repeats. Kept up to date on 'library:sound' (a flag from the Console). */
+  const rowMeta = (s) => [KIND_LABEL[s.kind], s.flags?.length ? `${s.flags.length} ${s.flags.length === 1 ? 'flag' : 'flags'}` : null, s.repeat === 0 ? 'loops' : s.repeat > 1 ? `plays ${s.repeat}×` : null, s.status === 'analyzing' ? 'reading…' : null].filter(Boolean).join(' · ');
+
   function makeRow(s) {
     {
       const playing = playState(s);
@@ -253,7 +256,7 @@ export default function createLibrary({ el, getState, setState, workspace }) {
       h('button', { class: `btn-icon btn-sm lb-play ${playing ? 'is-on' : ''}`, type: 'button', title: PLAY_HINT[s.kind], 'aria-label': `${PLAY_HINT[s.kind]}: ${s.name}`, onclick: () => playForTable(s) }, icon(playing ? 'stop' : 'play')),
       h('span', { class: 'lb-name' },
         h('span', { class: 'truncate' }, s.name),
-        h('span', { class: 'meta truncate' }, [KIND_LABEL[s.kind], s.flags?.length ? `${s.flags.length} ${s.flags.length === 1 ? 'flag' : 'flags'}` : null, s.repeat === 0 ? 'loops' : s.repeat > 1 ? `plays ${s.repeat}×` : null, s.status === 'analyzing' ? 'reading…' : null].filter(Boolean).join(' · '))),
+        h('span', { class: 'meta truncate lb-meta' }, rowMeta(s))),
       h('span', { class: 'lb-dur num' }, fmtTime(s.duration)),
       s.kind === 'effect' ? null : queueButton(s),
       s.kind === 'effect' ? null : onTopButton(s),
@@ -412,8 +415,10 @@ export default function createLibrary({ el, getState, setState, workspace }) {
   const offs = [
     bus.on('library', () => { render(); editor.refresh(); }),
     bus.on('library:sound', (s) => {
-      const row = listEl.querySelector(`[data-id="${CSS.escape(s.id)}"] .lb-name .truncate`);
-      if (row && row.textContent !== s.name) row.textContent = s.name;
+      const row = listEl.querySelector(`[data-id="${CSS.escape(s.id)}"]`);
+      if (!row) return;
+      setText(row.querySelector('.lb-name .truncate'), s.name);
+      setText(row.querySelector('.lb-meta'), rowMeta(s));
     }),
     bus.on('jobs', renderJobs),
     bus.on('audio', () => {
