@@ -8,7 +8,8 @@ import { h, icon, clear, setIcon } from '../core/dom.js';
 import { bus } from '../core/bus.js';
 import { library, KIND_LABEL, MAX_VOLUME } from '../core/library.js';
 import { promptDialog, showMenu, toast } from '../core/ui.js';
-import { clamp, fmtTime, parseTime, uid, hostOf } from '../core/util.js';
+import { clamp, fmtTime, parseTime, hostOf } from '../core/util.js';
+import { withFlag, withoutFlag, saveFlags as storeFlags } from '../core/flags.js';
 import { engine } from '../audio/engine.js';
 import { drawBars, themeColors, fitCanvas, tickStep } from '../audio/wave.js';
 import { SITE } from '../core/mode.js';
@@ -402,11 +403,8 @@ export function createEditor({ onSelectSound } = {}) {
   }
   function addFlag(t = playhead(), label) {
     if (!sound) return;
-    const flags = (sound.flags || []).slice();
-    if (flags.some((f) => Math.abs(f.t - t) < 0.05)) { toast('There is already a flag there.'); return; }
-    const f = { id: uid('f'), t: Math.round(t * 1000) / 1000, label: label || `Flag ${flags.length + 1}` };
-    flags.push(f);
-    flags.sort((x, y) => x.t - y.t);
+    const { flags, flag: f } = withFlag(sound.flags, t, label);
+    if (!f) { toast('There is already a flag there.'); return; }
     sound.flags = flags;
     activeFlag = f.id;
     saveFlags();
@@ -414,13 +412,13 @@ export function createEditor({ onSelectSound } = {}) {
     if (input && !(engine.preview && engine.preview.state === 'playing')) { input.focus(); input.select(); }
   }
   function removeFlag(id) {
-    sound.flags = sound.flags.filter((f) => f.id !== id);
+    sound.flags = withoutFlag(sound.flags, id);
     if (activeFlag === id) activeFlag = null;
     saveFlags();
   }
   function saveFlags() {
     sound.flags.sort((x, y) => x.t - y.t);
-    library.update(sound.id, { flags: sound.flags.map((f) => ({ ...f })) });
+    storeFlags(sound.id, sound.flags);
     draw();
     renderFlags();
   }
