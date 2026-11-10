@@ -9,6 +9,7 @@ import { keys } from '../core/keys.js';
 import { kbd } from '../core/kbd.js';
 import { library, MAX_VOLUME } from '../core/library.js';
 import { fader } from '../core/fader.js';
+import { pickSound } from '../core/ui.js';
 import { fmtTime, fmtDuration, clamp } from '../core/util.js';
 import { engine, SPEED_MIN, SPEED_MAX } from '../audio/engine.js';
 import { playlists, REPEAT } from '../audio/playlists.js';
@@ -287,7 +288,8 @@ export default function createConsole({ el, id, getState, setState }) {
   function renderFlagList() {
     clear(flagList);
     if (!engine.music.voice) {
-      flagList.append(h('p', { class: 'meta cn-noflags' }, 'The playing track’s flags show here: tap one to jump to it, or drop a new one as it plays.'));
+      flagList.append(h('p', { class: 'meta cn-noflags' }, 'The playing track’s flags show here: tap one to jump to it, or drop a new one as it plays.'),
+        pickFlagsButton('Flags for a sound'));
       return;
     }
     const flags = engine.flags();
@@ -310,7 +312,19 @@ export default function createConsole({ el, id, getState, setState }) {
     flagList.append(h('button', {
       class: 'btn btn-sm cn-flagedit', type: 'button', title: 'Name, move, delete or add this track’s flags by time',
       onclick: () => { const v = engine.music.voice; if (v) openFlags(v.sound.id, { voice: v }); },
-    }, icon('edit', 'icon-sm'), flags.length ? 'Edit flags' : 'Add by time'));
+    }, icon('edit', 'icon-sm'), flags.length ? 'Edit flags' : 'Add by time'), pickFlagsButton('Another sound'));
+  }
+  // Any sound's flags from here: choose it from the library (playing or not); if it is playing anywhere
+  // (the track, on top, a pad), the new flag's time starts where it is.
+  function pickFlagsButton(label) {
+    return h('button', {
+      class: 'btn btn-sm cn-flagedit cn-flagpick', type: 'button', title: 'Choose a sound from the library to see and add its flags',
+      onclick: async () => {
+        const id = await pickSound({ library, title: 'Flags for which sound?' });
+        if (!id) return;
+        openFlags(id, { voice: engine.playingNow().find((it) => it.id === id)?.voice || null });
+      },
+    }, icon('wave', 'icon-sm'), `${label}…`);
   }
   let lastPos = '';
   let lastFlag = -2;
