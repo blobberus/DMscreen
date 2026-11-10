@@ -13,7 +13,8 @@ built around a sound console you can run from the keyboard without looking.
   track ends the one playing; a track's on-top button plays it over whatever is playing instead.
 - **Sound library and editor**: add files, download from links, trim, drop flags, set repeats and
   fades, cut part of a sound into a new one, export MP3 or WAV.
-- **YouTube**: search, preview, and download the audio (all of it, or just a stretch) as MP3.
+- **YouTube**: search, preview, and download the audio (all of it, or just a stretch) as MP3, with a
+  flag at each of the video's chapters.
 - **Stone Wardens**: your campaign site, and the screen's browser. Searches, addresses, your Sites list
   (5e.tools, D&D Beyond…), links in notes and links the campaign site opens in a new tab all load in
   this one tab.
@@ -173,11 +174,15 @@ Flags mark the moments in a sound you want to jump back to: the storm breaks, th
   **Flags for a sound…** / **Another sound…** to choose one from the library, playing or not. It lists
   every flag with its name and time (Up and Down nudge a time by a tenth of a second, Shift by a
   second), a play button that jumps there or previews from it, the sound's waveform (click it to place
-  a new flag), **Drop a flag now** while it plays, and **New flag** to add one at a typed time. The
-  same dialog is in each sound's ⋯ menu in the Sound library, a track's menu in a playlist (or its flag
-  count) and a pad's settings.
+  a new flag), **Drop a flag now** while it plays, and **New flag** to add one at a typed time.
+  **Paste a list of times…** adds many at once, one "1:23 Name" per line (a video's chapter list from
+  its description works as it is), and **Copy as text** copies them the same way. The same dialog is in
+  each sound's ⋯ menu in the Sound library, a track's menu in a playlist (or its flag count) and a
+  pad's settings. On the Console's waveform, drag a flag's mark sideways to move it.
 - **In the editor.** Open a sound in the Sound library, play it and press **F** at each moment, then
   name the flags; drag a flag to move it.
+- **From a video's chapters (PC version).** A YouTube download of a video with chapters gets a flag
+  at each one (only those in the part downloaded); untick **Flags from its chapters** to leave them out.
 
 ### Trims and clips
 

@@ -91,7 +91,10 @@ tools/index_sounds.py   the sounds repo's library.json + peaks/ (reuses build_si
   Flags row: Edit flags / Flags for a sound… through `pickSound`), the Flags dialog (also in the Sound
   library's, a playlist track's and a pad's menus) and the editor. Everything showing flags follows
   'library:sound' (Console, editor, library rows, the dialog) and never rebuilds a list under the typing:
-  it catches up when the focus leaves.
+  it catches up when the focus leaves. `parseFlagList` reads pasted "1:23 Name" lines (chapter lists),
+  `flagListText` writes them. PC downloads: yt-dlp prints `%(chapters)j` at the video stage ("NA" when
+  none) and `server.chapter_flags` makes them flags, shifted to a downloaded stretch (job `chapters:
+  false` leaves them out; `chapterFlags` in the job says how many).
 - Dialogs stack (`dialogStack` in ui.js): Escape closes only the top one, and not while a menu is open
   over it (every dialog listened on the document, so one Escape closed them all).
 - `engine`: ONE deck (`engine.music`, a `Deck`) plays any playlist (music or ambience) or single track;
