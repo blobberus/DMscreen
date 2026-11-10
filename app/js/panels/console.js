@@ -124,7 +124,7 @@ export default function createConsole({ el, id, getState, setState }) {
     h('div', { class: 'cn-head' }, h('div', { class: 'cn-titles' }, context, track), h('div', { class: 'cn-clock' }, pos, len)),
     strip, transport,
     h('div', { class: 'cn-plwrap cn-playwrap' }, playingHead, spBar, playingList),
-    flagList,
+    h('div', { class: 'cn-plwrap cn-flagwrap' }, h('h3', { class: 'cn-h' }, 'Flags'), flagList),
     h('div', { class: 'cn-plwrap' }, h('h3', { class: 'cn-h' }, 'Playlists'), plRow),
     h('div', { class: 'cn-plwrap' }, h('h3', { class: 'cn-h' }, 'Ambience'), ambRow),
     h('div', { class: 'cn-plwrap' }, h('h3', { class: 'cn-h' }, 'Effects'), fxRow));
@@ -247,7 +247,7 @@ export default function createConsole({ el, id, getState, setState }) {
       pos.textContent = '';
       lastPos = '';
       len.textContent = '';
-      clear(flagList);
+      renderFlagList();
       clear(flagLayer);
       upNext.textContent = '';
       upKey = null;
@@ -286,6 +286,10 @@ export default function createConsole({ el, id, getState, setState }) {
   }
   function renderFlagList() {
     clear(flagList);
+    if (!engine.music.voice) {
+      flagList.append(h('p', { class: 'meta cn-noflags' }, 'The playing track’s flags show here: tap one to jump to it, or drop a new one as it plays.'));
+      return;
+    }
     const flags = engine.flags();
     if (!flags.length) {
       const combo = keys.combo('flag.add');

@@ -38,6 +38,8 @@
 .cn-play:hover { background: var(--raised-2); }
 .cn-upnext { flex: 1; min-width: 120px; text-align: right; color: var(--text); }
 .cn-flags { display: flex; flex-wrap: wrap; gap: 6px; }
+.cn-flagwrap .cn-flags { flex: 1; min-width: 0; }
+.cn-flagwrap .cn-noflags { padding-top: 6px; }
 .cn-flagbtn {
   position: relative; display: inline-flex; align-items: center; gap: 8px; height: 30px; max-width: 260px; padding: 0 10px 0 6px;
   font: 400 14px / 1 var(--font-ui); color: var(--text); background: var(--raised); border: 1px solid var(--border); border-radius: var(--radius-sm);
