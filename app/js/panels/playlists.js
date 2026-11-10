@@ -15,6 +15,7 @@ import { previewButton, onTopButton, queueButton, syncPreviewButtons } from '../
 import { playlists, REPEAT } from '../audio/playlists.js';
 import { SITE } from '../core/mode.js';
 import { newFolder, folderItems, soundItems, addButton, explainFailure, deleteFolder, accessNote } from '../dialogs/files.js';
+import { openFlags } from '../dialogs/flags.js';
 
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -194,7 +195,7 @@ export default function createPlaylists({ el, getState, setState }) {
       SITE ? h('span') : h('span', { class: 'pl-grip', 'aria-hidden': 'true' }, icon('grip', 'icon-sm')),
       h('span', { class: 'pl-n num faint' }, String(i + 1)),
       h('span', { class: 'pl-tname truncate' }, s ? s.name : 'Missing sound'),
-      s?.flags?.length ? h('span', { class: 'meta pl-flagcount', title: `${s.flags.length} flags` }, icon('flag', 'icon-sm'), String(s.flags.length)) : h('span'),
+      s?.flags?.length ? h('button', { class: 'meta pl-flagcount', type: 'button', title: `${s.flags.length} ${s.flags.length === 1 ? 'flag' : 'flags'}: see, name or add them`, 'aria-label': `Flags of ${s.name}`, onclick: () => openFlags(s.id) }, icon('flag', 'icon-sm'), String(s.flags.length)) : h('span'),
       h('span', { class: 'pl-dur num meta' }, s ? fmtTime(b - a) : '–'),
       s ? previewButton(s) : h('span'),
       h('button', { class: 'btn-icon btn-sm', type: 'button', title: 'Play from here, ending what is playing', 'aria-label': `Play from ${s?.name}`, disabled: !s, onclick: () => playlists.play(pl.id, { index: i }) }, icon('play')),
@@ -209,6 +210,16 @@ export default function createPlaylists({ el, getState, setState }) {
     row.addEventListener('dragstart', (e) => { e.dataTransfer.setData('application/x-dm-track', String(i)); e.dataTransfer.effectAllowed = 'move'; row.classList.add('is-dragging'); });
     row.addEventListener('dragend', () => row.classList.remove('is-dragging'));
     row.addEventListener('dblclick', (e) => { if (!e.target.closest('button')) playlists.play(pl.id, { index: i }); });
+    // right-click or hold a track: its flags (and on the website, the file's own items)
+    if (s) row.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      showMenu({ x: e.clientX, y: e.clientY }, [
+        { header: s.name },
+        { label: 'Play from here', icon: 'play', onClick: () => playlists.play(pl.id, { index: i }) },
+        { label: 'Flags…', icon: 'flag', hint: s.flags?.length ? String(s.flags.length) : '', onClick: () => openFlags(s.id) },
+        ...(SITE ? [{ sep: true }, ...soundItems(s)] : []),
+      ]);
+    });
     return row;
   }
 

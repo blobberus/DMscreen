@@ -290,7 +290,8 @@ button.pd-key:active, .pd-key.is-hit { transform: translateY(1px); }
 .pl-tname { flex: 1; min-width: 0; }
 .pl-track.is-live .pl-tname, .pl-ambrow.is-live .pl-tname { position: relative; }
 .pl-track.is-live .pl-tname::after, .pl-ambrow.is-live .pl-tname::after { content: ""; position: absolute; left: 0; width: min(100%, var(--w, 100%)); bottom: 2px; height: 1px; background: var(--accent); }
-.pl-flagcount { display: inline-flex; align-items: center; gap: 3px; }
+.pl-flagcount { display: inline-flex; align-items: center; gap: 3px; height: var(--control-h-sm); padding: 0 4px; background: transparent; border: 0; border-radius: var(--radius-sm); cursor: pointer; }
+.pl-flagcount:hover { color: var(--text); background: var(--raised); }
 .pl-dur { width: 48px; text-align: right; }
 .pl-ambrow .range { width: 120px; flex: none; }
 .pl-ambnum { width: 28px; text-align: right; }
