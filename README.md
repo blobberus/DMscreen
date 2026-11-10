@@ -4,7 +4,8 @@ A Dungeon Master's screen for the table: up to four panes you arrange however th
 built around a sound console you can run from the keyboard without looking.
 
 - **Sound console**: everything that is playing, sound effects included (each with a scrub bar and a
-  stop), the track's flags, the transport, your playlists, ambience and pads to fire, and a mixer.
+  stop), the track's flags (drop new ones as it plays, or edit any sound's), the transport, your
+  playlists, ambience and pads to fire, and a mixer.
 - **Soundboard**: effect pads laid out like your keyboard. Alt+Q fires the pad on Q. **Fade effects**
   (here, in the top bar and in the Console's mixer, or Alt+Shift+0) fades every effect out while the music
   and ambience play on; press it again mid-fade to stop them at once. Settings, Audio sets how long it takes.
@@ -141,6 +142,7 @@ Needs Python 3.10 or newer (already on this computer). Everything else installs 
 | Alt+, / Alt+. | Previous / next track |
 | Alt+[ / Alt+] | Back to the previous flag / skip to the next flag |
 | Alt+Shift+1 … 9 | Jump to flag 1 to 9 of the playing track |
+| Alt+Shift+F | Drop a flag on the playing track, where it is now |
 | Alt+- / Alt+= | Music quieter / louder |
 | Alt+\ | Duck music and ambience while you talk |
 | Alt+0 | Fade everything out |
@@ -158,10 +160,28 @@ changed in Settings, Keys. Your keyboard's media keys control the music as well.
 If you click inside a site pane (Stone Wardens, 5e.tools), that site has the keyboard until you move
 away from it or click anywhere on the screen; the top bar says "Keys paused" while that's so.
 
-### Flags, trims and clips
+### Flags
 
-Open a sound in the Sound library. Play it and press **F** at each moment you want to jump to (the
-storm breaks, the chorus, the roar), then name the flags. **I** and **O** set where it starts and ends.
+Flags mark the moments in a sound you want to jump back to: the storm breaks, the chorus, the roar.
+
+- **As it plays, from the Console.** Press the flag button in the transport (or Alt+Shift+F) and a
+  flag drops where the track is now; its toast can rename it or take it back. Each row under Playing
+  has its own flag button, so a sound on top or a pad can be flagged as it plays too. Tap a flag in
+  the Flags row to jump to it; right-click or hold it to rename it, move it to where the track is now,
+  or delete it (with Undo).
+- **For any sound, in the Flags dialog.** The Flags row's **Edit flags** (the playing track), or
+  **Flags for a sound…** / **Another sound…** to choose one from the library, playing or not. It lists
+  every flag with its name and time (Up and Down nudge a time by a tenth of a second, Shift by a
+  second), a play button that jumps there or previews from it, the sound's waveform (click it to place
+  a new flag), **Drop a flag now** while it plays, and **New flag** to add one at a typed time. The
+  same dialog is in each sound's ⋯ menu in the Sound library, a track's menu in a playlist (or its flag
+  count) and a pad's settings.
+- **In the editor.** Open a sound in the Sound library, play it and press **F** at each moment, then
+  name the flags; drag a flag to move it.
+
+### Trims and clips
+
+Open a sound in the Sound library. **I** and **O** set where it starts and ends.
 Drag across the waveform to select a stretch, then **Save as a new sound** to cut it into its own file:
 a "100 sword sounds" video becomes a hundred pads. A pad can also start at a flag and stop at the next
 one, so one long recording can feed a whole bank.
