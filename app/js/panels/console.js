@@ -395,6 +395,8 @@ export default function createConsole({ el, id, getState, setState }) {
         h('span', { class: 'cn-pwhere meta truncate' }, `${KIND[v.sound.kind] || 'Sound'} · ${paused ? `${it.where} · paused` : it.where}`)),
       time,
       h('span', { class: 'cn-pbtns' },
+        // a flag on this sound where it is now: a sound on top or a pad can be flagged as it plays too
+        h('button', { class: 'btn-icon btn-sm', type: 'button', title: `Drop a flag on ${name}, where it is now`, 'aria-label': `Drop a flag on ${name}`, onclick: () => dropFlag(v) }, icon('flag-add', 'icon-sm')),
         // sounds on top and pads loop or play once (the track loops with the transport's Repeat track)
         it.role === 'deck' ? null : h('button', { class: 'btn-icon btn-sm', type: 'button', 'aria-pressed': String(!!it.loop), title: it.loop ? 'Looping. Press to let it finish this pass.' : 'Plays once. Press to loop it.', 'aria-label': `Loop ${name}`, onclick: () => engine.setLooping(it, !it.loop) }, icon('loop', 'icon-sm')),
         h('button', { class: 'btn-icon btn-sm', type: 'button', 'aria-pressed': String(!!it.lowpass), title: it.lowpass ? 'Goes through the low-pass and speed. Press to keep it clear.' : 'Kept clear of the low-pass and speed. Press to send it through.', 'aria-label': `Low-pass and speed for ${name}`, onclick: () => engine.setFiltered(it, !it.lowpass) }, icon('wave', 'icon-sm')),
