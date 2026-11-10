@@ -719,6 +719,12 @@ button.pd-key:active, .pd-key.is-hit { transform: translateY(1px); }
 .fg-add { display: grid; grid-template-columns: auto 84px minmax(0, 1fr) auto; align-items: center; gap: 6px; padding-top: 12px; border-top: 1px solid var(--rule); }
 .fg-addcap { white-space: nowrap; }
 .fg-err { margin: -4px 0 0; color: var(--warn); }
+/* narrow screens (Slide Over, a phone): the New flag caption goes, so the name box has room */
+@media (max-width: 560px) {
+  .fg-add { grid-template-columns: 76px minmax(0, 1fr) auto; }
+  .fg-addcap { display: none; }
+  .fg-row { grid-template-columns: 18px minmax(0, 1fr) 76px auto auto; gap: 4px; }
+}
 /* fingers (the iPad): bigger boxes and buttons in the dialog and the Console's flag row; 16px text so
    Safari doesn't zoom the page into a box on focus */
 @media (pointer: coarse) {
