@@ -20,6 +20,7 @@ import { buildRail } from './layout/rail.js';
 import { openSettings } from './dialogs/settings.js';
 import { openShortcuts } from './dialogs/shortcuts.js';
 import { accessText } from './dialogs/files.js';
+import { dropFlag } from './dialogs/flags.js';
 import { startPlaylistKey, playlists } from './audio/playlists.js';
 
 function applyTheme(theme) {
@@ -205,6 +206,7 @@ function wireKeys() {
   keys.on('music.prev', () => engine.prev());
   keys.on('flag.next', () => engine.nextFlag());
   keys.on('flag.prev', () => engine.prevFlag());
+  keys.on('flag.add', () => dropFlag());
   keys.on('music.down', () => engine.nudge('music', -0.05));
   keys.on('music.up', () => engine.nudge('music', 0.05));
   keys.on('duck', () => engine.toggleDuck());

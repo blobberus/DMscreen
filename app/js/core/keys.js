@@ -86,6 +86,7 @@ keys.define('music.prev', { label: 'Previous track', combo: 'Alt+,', group: 'mus
 keys.define('music.next', { label: 'Next track', combo: 'Alt+.', group: 'music' });
 keys.define('flag.prev', { label: 'Back to the previous flag', combo: 'Alt+[', group: 'music' });
 keys.define('flag.next', { label: 'Skip to the next flag', combo: 'Alt+]', group: 'music' });
+keys.define('flag.add', { label: 'Drop a flag on the playing track, where it is now', combo: 'Alt+Shift+F', group: 'music' });
 keys.define('music.down', { label: 'Music quieter', combo: 'Alt+-', group: 'music', repeat: true });
 keys.define('music.up', { label: 'Music louder', combo: 'Alt+=', group: 'music', repeat: true });
 keys.define('duck', { label: 'Duck music and ambience (talk over)', combo: 'Alt+\\', group: 'music' });
