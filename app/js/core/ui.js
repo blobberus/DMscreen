@@ -7,10 +7,10 @@ const overlays = () => document.getElementById('overlays') || document.body;
 
 // ---------- toasts -------------------------------------------------------------
 let toastHost = null;
-export function toast(message, { type = 'info', timeout = 3800, action } = {}) {
+export function toast(message, { type = 'info', timeout = 3800, action, actions = [] } = {}) {
   if (!toastHost) { toastHost = h('div', { class: 'toasts', role: 'status', 'aria-live': 'polite' }); overlays().append(toastHost); }
   const el = h('div', { class: `toast is-${type}` }, h('span', { class: 'toast-mark' }), h('span', null, message));
-  if (action) el.append(h('button', { class: 'btn btn-sm', type: 'button', onclick: () => { action.run(); el.remove(); } }, action.label));
+  for (const a of action ? [action, ...actions] : actions) el.append(h('button', { class: 'btn btn-sm', type: 'button', onclick: () => { a.run(); el.remove(); } }, a.label));
   toastHost.append(el);
   setTimeout(() => el.remove(), type === 'error' ? Math.max(timeout, 7000) : timeout);
   return el;

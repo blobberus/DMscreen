@@ -306,8 +306,13 @@ export function dropFlag(voice = engine.music.voice) {
   const r = flagVoice(voice);
   if (!r) return null;
   if (!r.flag) { toast(`${r.near.label} is already there.`); return r; }
+  const { id } = r.sound;
   toast(`${r.flag.label} dropped at ${at(r.t)} in ${r.sound.name}.`, {
-    type: 'ok', timeout: 6000, action: { label: 'Rename', run: () => renameFlag(r.sound.id, r.flag.id) },
+    type: 'ok', timeout: 6000,
+    actions: [
+      { label: 'Rename', run: () => renameFlag(id, r.flag.id) },
+      { label: 'Undo', run: () => { const s = library.get(id); if (s) saveFlags(id, withoutFlag(s.flags, r.flag.id)); } },
+    ],
   });
   return r;
 }
