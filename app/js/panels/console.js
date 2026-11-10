@@ -15,7 +15,7 @@ import { engine, SPEED_MIN, SPEED_MAX } from '../audio/engine.js';
 import { playlists, REPEAT } from '../audio/playlists.js';
 import { board } from '../audio/board.js';
 import { drawBars, themeColors, timeToX } from '../audio/wave.js';
-import { dropFlag, flagMenu, openFlags } from '../dialogs/flags.js';
+import { dropFlag, flagMenu, openFlags, soundFlagsMenu } from '../dialogs/flags.js';
 
 export default function createConsole({ el, id, getState, setState }) {
   const root = h('div', { class: 'cn' });
@@ -389,7 +389,11 @@ export default function createConsole({ el, id, getState, setState }) {
     const stop = () => (it.role === 'deck' ? engine.stopMusic(1) : it.role === 'top' ? engine.stopLayer(it.id) : engine.stopPadVoice(v));
     const paused = v.state === 'paused';
     const bar = scrubber(it, () => { playingKey = null; steady(renderPlaying); });     // caught up after a drag
-    const el = h('div', { class: `cn-prow is-${it.role} ${paused ? 'is-paused' : ''}`, role: 'listitem' },
+    const el = h('div', {
+      class: `cn-prow is-${it.role} ${paused ? 'is-paused' : ''}`, role: 'listitem',
+      // not on the scrub bar: a finger held still there is scrubbing, not asking for a menu
+      oncontextmenu: (e) => { if (e.target.closest('.cn-pbar')) return; e.preventDefault(); soundFlagsMenu({ x: e.clientX, y: e.clientY }, v); },
+    },
       h('span', { class: 'cn-ptitle' },
         h('span', { class: 'cn-pname truncate', title: name }, name),
         h('span', { class: 'cn-pwhere meta truncate' }, `${KIND[v.sound.kind] || 'Sound'} · ${paused ? `${it.where} · paused` : it.where}`)),

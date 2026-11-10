@@ -60,6 +60,18 @@ export function flagMenu(anchor, flag, voice = engine.music.voice) {
   ]);
 }
 
+/** The menu for a playing sound (a row of the Console's Playing list): flag it here, or open its flags. */
+export function soundFlagsMenu(anchor, voice) {
+  const s = library.get(voice.sound.id);
+  if (!s) return;
+  const n = s.flags?.length || 0;
+  showMenu(anchor, [
+    { header: s.name },
+    { label: `Drop a flag here (${at(voiceTime(voice))})`, icon: 'flag-add', onClick: () => dropFlag(voice) },
+    { label: 'Flags…', icon: 'flag', hint: n ? String(n) : '', onClick: () => openFlags(s.id, { voice }) },
+  ]);
+}
+
 // ---- the Flags dialog: every flag of one sound ------------------------------------------------
 /** Name, move, delete and add a sound's flags without the editor. With a voice of that sound playing,
  *  the new flag's time starts where it is. */
