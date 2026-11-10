@@ -356,7 +356,7 @@ export default function createLibrary({ el, getState, setState, workspace }) {
       jobsEl.append(h('div', { class: `lb-job is-${j.status}` },
         icon(j.status === 'error' ? 'warning' : j.status === 'done' ? 'check' : 'download', 'icon-sm'),
         h('span', { class: 'lb-jobtitle truncate', title: j.url }, j.title || j.url),
-        h('span', { class: `meta lb-jobstatus ${j.status === 'error' ? 'is-error' : ''}`, title: j.error || '' }, j.status === 'error' ? (j.errorCode === 'bot-check' ? 'YouTube wants a sign-in' : 'Failed') : `${STATUS[j.status] || j.status}${pct}`),
+        h('span', { class: `meta lb-jobstatus ${j.status === 'error' ? 'is-error' : ''}`, title: j.error || '' }, j.status === 'error' ? (j.errorCode === 'bot-check' ? 'YouTube wants a sign-in' : 'Failed') : `${STATUS[j.status] || j.status}${pct}${j.status === 'done' && j.chapterFlags ? `, ${j.chapterFlags} ${j.chapterFlags === 1 ? 'flag' : 'flags'} from its chapters` : ''}`),
         active ? h('div', { class: `progress ${j.status === 'downloading' && j.progress > 0 ? '' : 'is-indeterminate'}`, style: { '--p': `${j.progress * 100}%` } }, h('i')) : null,
         j.status === 'done' && j.soundId ? h('button', { class: 'btn btn-sm', type: 'button', onclick: () => select(j.soundId) }, 'Open') : null,
         j.status === 'error' && j.errorCode === 'bot-check' ? h('button', { class: 'btn btn-sm', type: 'button', onclick: () => import('../dialogs/settings.js').then((m) => m.openSettings('youtube')) }, 'Fix in Settings') : null,

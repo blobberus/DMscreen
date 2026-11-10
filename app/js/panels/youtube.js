@@ -206,7 +206,8 @@ export default function createYouTube({ el, getState, setState, workspace }) {
       const job = jobId && library.jobs().find((j) => j.id === jobId);
       if (!job) return;
       if (job.status === 'done') {
-        status.append(h('span', { class: 'yt-done' }, icon('check', 'icon-sm'), 'In the library'),
+        const n = job.chapterFlags || 0;
+        status.append(h('span', { class: 'yt-done' }, icon('check', 'icon-sm'), n ? `In the library, with ${n} ${n === 1 ? 'flag' : 'flags'} from its chapters` : 'In the library'),
           h('button', { class: 'btn btn-sm', type: 'button', onclick: () => openInLibrary(job.soundId) }, 'Open in the editor'));
       } else if (job.status === 'error') {
         status.append(h('span', { class: 'field-error' }, job.error));
