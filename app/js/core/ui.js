@@ -20,6 +20,10 @@ bus.on('toast', ({ message, type }) => toast(message, { type }));
 // ---------- dialogs ------------------------------------------------------------
 let openCount = 0;
 export const dialogOpen = () => openCount > 0;
+// Dialogs open over each other (the Flags dialog over a pad's settings, a picker over a playlist): Escape
+// closes only the top one, and leaves even that to a menu open over it. Every dialog listens on the
+// document, so without this one Escape closed them all.
+const dialogStack = [];
 
 export function openDialog({ title, body, actions = [], wide = false, onClose, className = '', initialFocus } = {}) {
   const prevFocus = document.activeElement;
@@ -36,13 +40,17 @@ export function openDialog({ title, body, actions = [], wide = false, onClose, c
     if (closed) return;
     closed = true;
     openCount--;
+    dialogStack.splice(dialogStack.indexOf(card), 1);
     backdrop.remove();
     document.removeEventListener('keydown', onKey, true);
     onClose?.(result);
     prevFocus?.focus?.();
   }
   function onKey(e) {
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+    if (e.key !== 'Escape' || dialogStack[dialogStack.length - 1] !== card || openMenu) return;
+    e.preventDefault();
+    e.stopPropagation();
+    close();
   }
   for (const a of actions) {
     foot.append(h('button', {
@@ -52,6 +60,7 @@ export function openDialog({ title, body, actions = [], wide = false, onClose, c
     }, a.label));
   }
   openCount++;
+  dialogStack.push(card);
   overlays().append(backdrop);
   document.addEventListener('keydown', onKey, true);
   requestAnimationFrame(() => {
