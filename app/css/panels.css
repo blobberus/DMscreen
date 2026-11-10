@@ -46,6 +46,8 @@
 .cn-flagbtn.is-current::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 1px; background: var(--accent); }
 .cn-flagbtn .kbd { height: 18px; font-size: 12px; }
 .cn-noflags { padding: 2px 0; }
+.cn-noflags-ic { display: inline-block; vertical-align: -3px; color: var(--text); }
+.cn-noflags .kbd { height: 18px; font-size: 12px; vertical-align: 1px; }
 .cn-plwrap { display: flex; align-items: flex-start; gap: 12px; padding-top: 10px; border-top: 1px solid var(--rule); min-width: 0; }
 /* Playlists, Ambience, Effects: labels in one column, level with the first line of buttons */
 .cn-plwrap > .cn-h { width: 68px; padding-top: 7px; }

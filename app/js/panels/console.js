@@ -287,7 +287,9 @@ export default function createConsole({ el, id, getState, setState }) {
     clear(flagList);
     const flags = engine.flags();
     if (!flags.length) {
-      flagList.append(h('p', { class: 'meta cn-noflags' }, 'No flags in this track. Add them in the Sound library to skip straight to a moment.'));
+      const combo = keys.combo('flag.add');
+      flagList.append(h('p', { class: 'meta cn-noflags' }, 'No flags in this track yet. Press ', icon('flag-add', 'icon-sm cn-noflags-ic'),
+        combo ? [' or ', kbd(combo)] : null, ' at a moment you will want again, and jump back to it from here.'));
       return;
     }
     flags.forEach((f, i) => {
