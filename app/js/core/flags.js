@@ -7,6 +7,8 @@ import { library } from './library.js';
 
 /** Two flags closer than this (seconds) are the same moment. */
 export const NEAR = 0.05;
+/** The same, for a flag dropped live as a sound plays: a double tap on the Flag button is one flag. */
+export const LIVE_NEAR = 0.4;
 
 export const roundTime = (t) => Math.round(t * 1000) / 1000;
 export const sortFlags = (flags) => (flags || []).slice().sort((a, b) => a.t - b.t);
@@ -24,10 +26,10 @@ export function nextLabel(flags) {
   return `Flag ${n}`;
 }
 
-/** Add a flag at t. -> {flags, flag}, or {flags, flag: null, near} when one is already there. */
-export function withFlag(flags, t, label) {
+/** Add a flag at t. -> {flags, flag}, or {flags, flag: null, near} when one is already within `within`. */
+export function withFlag(flags, t, label, within = NEAR) {
   const list = flags || [];
-  const near = flagNear(list, t);
+  const near = flagNear(list, t, within);
   if (near) return { flags: sortFlags(list), flag: null, near };
   const flag = { id: uid('f'), t: roundTime(Math.max(0, t)), label: String(label || '').trim() || nextLabel(list) };
   return { flags: sortFlags([...list, flag]), flag };
@@ -55,7 +57,7 @@ export function flagVoice(voice, label) {
   const sound = voice && library.get(voice.sound.id);
   if (!sound) return null;
   const t = voiceTime(voice);
-  const r = withFlag(sound.flags, t, label);
+  const r = withFlag(sound.flags, t, label, LIVE_NEAR);
   if (r.flag) saveFlags(sound.id, r.flags);
   return { sound, t, ...r };
 }
