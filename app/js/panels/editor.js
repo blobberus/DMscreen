@@ -9,7 +9,7 @@ import { bus } from '../core/bus.js';
 import { library, KIND_LABEL, MAX_VOLUME } from '../core/library.js';
 import { promptDialog, showMenu, toast } from '../core/ui.js';
 import { clamp, fmtTime, parseTime, hostOf } from '../core/util.js';
-import { withFlag, withoutFlag, saveFlags as storeFlags } from '../core/flags.js';
+import { withFlag, withoutFlag, withLabel, withTime, saveFlags as storeFlags } from '../core/flags.js';
 import { engine } from '../audio/engine.js';
 import { drawBars, themeColors, fitCanvas, tickStep } from '../audio/wave.js';
 import { SITE } from '../core/mode.js';
@@ -290,7 +290,7 @@ export function createEditor({ onSelectSound } = {}) {
     const f = sound.flags.find((x) => x.id === flagEl.dataset.flag);
     if (!f) return;
     const label = await promptDialog('Rename this flag', { label: 'Label', value: f.label, okLabel: 'Rename' });
-    if (label) { f.label = label; saveFlags(); }
+    if (label && sound) { sound.flags = withLabel(sound.flags, f.id, label); saveFlags(); }
   });
   function snap(t) {
     const px = (view[1] - view[0]) / width() * 6;
@@ -432,13 +432,15 @@ export function createEditor({ onSelectSound } = {}) {
     }
     flags.forEach((f, i) => {
       const label = h('input', { class: 'input input-sm ed-flabel', value: f.label, 'aria-label': `Flag ${i + 1} label`, maxlength: 60 });
-      label.addEventListener('input', () => { f.label = label.value || `Flag ${i + 1}`; library.update(sound.id, { flags: sound.flags.map((x) => ({ ...x })) }); drawFlags(); });
+      // by id, in the sound's current list: each save hands the sound fresh copies, so `f` is out of date
+      // after the first letter (only that letter was kept)
+      label.addEventListener('input', () => { sound.flags = withLabel(sound.flags, f.id, label.value || `Flag ${i + 1}`); storeFlags(sound.id, sound.flags); drawFlags(); });
       label.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); waveBox.focus(); } });
       const time = h('input', { class: 'input input-sm ed-ftime num', value: fmtTime(f.t, { tenths: true }), 'aria-label': `Flag ${i + 1} time` });
       time.addEventListener('change', () => {
         const t = parseTime(time.value);
         if (t == null || t > dur()) { time.value = fmtTime(f.t, { tenths: true }); return; }
-        f.t = t;
+        sound.flags = withTime(sound.flags, f.id, t);
         saveFlags();
       });
       flagList.append(h('div', { class: `ed-frow ${activeFlag === f.id ? 'is-selected' : ''}`, 'data-flag': f.id },
