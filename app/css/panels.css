@@ -698,7 +698,8 @@ button.pd-key:active, .pd-key.is-hit { transform: translateY(1px); }
 /* ---------- Flags dialog (dialogs/flags.js): every flag of one sound ------------------------ */
 .fg-dialog { width: min(580px, 100%); }
 .fg { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.fg-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.fg-head { display: flex; align-items: center; gap: 12px; min-height: var(--control-h-sm); }
+.fg-what { flex: 1; min-width: 0; }
 .fg-count { flex: none; }
 .fg-wavebox { position: relative; height: 56px; margin-top: 14px; cursor: crosshair; }
 .fg-wave { width: 100%; height: 100%; }

@@ -124,9 +124,20 @@ export function openFlags(soundId, { voice = null } = {}) {
   let headX = -1;
   let headVoice = null;
   const findHead = () => { headVoice = engine.preview?.sound.id === soundId && alive(engine.preview) ? engine.preview : live(); };
+  // while it plays (at the table or in a preview), a flag where it is now, as the editor's F does
+  const nowBtn = h('button', {
+    class: 'btn btn-sm fg-now', type: 'button', hidden: true, title: 'Drop a flag where the sound is now',
+    onclick: () => {
+      if (!alive(headVoice)) return;
+      const r = flagVoice(headVoice);
+      fail(r && !r.flag ? `${r.near.label} is already at ${at(r.near.t)}.` : '');
+    },
+  }, icon('flag-add', 'icon-sm'), 'Drop a flag now');
   function tickHead() {
     const v = headVoice;
-    const show = !!v && alive(v) && waveW > 0;
+    const on = !!v && alive(v);
+    if (nowBtn.hidden === on) nowBtn.hidden = !on;
+    const show = on && waveW > 0;
     if (playhead.hidden === show) playhead.hidden = !show;
     if (!show) { headX = -1; return; }
     const x = Math.round(clamp(voiceTime(v) / (dur() || 1), 0, 1) * waveW);
@@ -243,8 +254,8 @@ export function openFlags(soundId, { voice = null } = {}) {
   const trimmed = from > 0.01 || to < (s0.duration || 0) - 0.01;
   const body = h('div', { class: 'fg' },
     h('div', { class: 'fg-head' },
-      h('span', { class: 'meta' }, [KIND_LABEL[s0.kind], at(s0.duration), trimmed ? `plays ${at(from)} to ${at(to)}` : null].filter(Boolean).join(' · ')),
-      count),
+      h('span', { class: 'meta fg-what' }, [KIND_LABEL[s0.kind], at(s0.duration), trimmed ? `plays ${at(from)} to ${at(to)}` : null].filter(Boolean).join(' · ')),
+      nowBtn, count),
     waveBox,
     list,
     h('div', { class: 'fg-add' },
