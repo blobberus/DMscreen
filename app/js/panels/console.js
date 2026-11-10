@@ -201,8 +201,9 @@ export default function createConsole({ el, id, getState, setState }) {
       const row = x - rows[0] > 8 ? 0 : x - rows[1] > 8 ? 1 : 0;
       rows[row] = x + approx;
       const btn = h('button', {
-        class: 'cn-flag', type: 'button', style: { left: `${x}px`, top: `${row * 22}px` }, 'data-row': row, title: `Jump to ${f.label} (${fmtTime(f.t)})`,
+        class: 'cn-flag', type: 'button', style: { left: `${x}px`, top: `${row * 22}px` }, 'data-row': row, title: `Jump to ${f.label} (${fmtTime(f.t)}). Right-click or hold for more.`,
         onclick: () => engine.jumpTo(f.t),
+        oncontextmenu: (e) => { e.preventDefault(); flagMenu({ x: e.clientX, y: e.clientY }, f); },
       }, h('span', { class: 'truncate' }, label));
       flagLayer.append(btn);
     }
