@@ -707,7 +707,7 @@ button.pd-key:active, .pd-key.is-hit { transform: translateY(1px); }
 .fg-mark b { position: absolute; top: 0; left: 3px; font: 500 11px / 1 var(--font-ui); color: var(--text); }
 .fg-pick { position: absolute; top: -4px; bottom: -4px; width: 0; border-left: 1px dashed var(--text); pointer-events: none; }
 .fg-list { display: flex; flex-direction: column; gap: 4px; max-height: min(44vh, 400px); overflow: auto; margin: 0 -4px; padding: 0 4px; }
-.fg-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) 84px auto; align-items: center; gap: 6px; min-height: 38px; }
+.fg-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) 84px auto auto; align-items: center; gap: 6px; min-height: 38px; }
 .fg-num { text-align: right; font-size: 13px; }
 .fg-time, .fg-addtime { text-align: right; }
 .fg-none { padding: 6px 0; }

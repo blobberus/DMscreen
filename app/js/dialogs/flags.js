@@ -1,7 +1,7 @@
 // Flags from outside the editor: drop one on a playing sound where it is now (Alt+Shift+F, the
 // Console's Flag button), rename, move or delete one (the Console's flag menu, the toast after a drop),
 // and the Flags dialog, which lists every flag of one sound to name, retime, delete or add by time.
-import { h, icon, clear } from '../core/dom.js';
+import { h, icon, clear, setIcon } from '../core/dom.js';
 import { bus } from '../core/bus.js';
 import { engine } from '../audio/engine.js';
 import { library, KIND_LABEL } from '../core/library.js';
@@ -154,6 +154,7 @@ export function openFlags(soundId, { voice = null } = {}) {
     if (!flags.length) list.append(h('p', { class: 'meta fg-none' }, 'No flags yet. Click the waveform or type a time below and press Add flag, or drop one while it plays.'));
     flags.forEach((f, i) => list.append(row(f, i)));
     drawMarks();
+    syncPlay();
   }
   function row(f, i) {
     const label = h('input', { class: 'input input-sm fg-label', value: f.label, maxlength: 60, 'aria-label': `Flag ${i + 1} name` });
@@ -180,8 +181,36 @@ export function openFlags(soundId, { voice = null } = {}) {
     return h('div', { class: 'fg-row', role: 'listitem', 'data-flag': f.id },
       h('span', { class: 'fg-num num faint' }, String(i + 1)),
       label, time,
+      h('button', { class: 'btn-icon btn-sm fg-play', type: 'button', title: `Play from ${f.label}`, 'aria-label': `Play from ${f.label}`, onclick: () => playFrom(f.id) }, icon('play')),
       h('button', { class: 'btn-icon btn-sm', type: 'button', title: `Delete ${f.label}`, 'aria-label': `Delete ${f.label}`, onclick: () => { deleteFlag(soundId, f.id); render(); } }, icon('close')));
   }
+  // Play from a flag: the sound playing at the table jumps there; otherwise it is previewed from there
+  // (the preview output, so with a headphone output set only the DM hears it). Again to stop the preview.
+  let previewFlag = null;
+  function playFrom(flagId) {
+    const s = library.get(soundId);
+    const f = flagOf(soundId, flagId);
+    if (!s || !f) return;
+    if (playing()) {
+      if (voice === engine.music.voice) engine.jumpTo(f.t);
+      else { if (voice.state === 'paused') voice.resume(); voice.seek(Math.max(0, f.t - voice.from)); }
+      return;
+    }
+    if (engine.previewing(soundId) && previewFlag === flagId) { engine.stopPreview(); return; }
+    const [a, b] = library.region(s);
+    const from = Math.min(a, f.t);
+    previewFlag = flagId;
+    engine.previewSound(s, { from, to: f.t < b ? b : dur(), at: f.t - from });
+  }
+  function syncPlay() {
+    const on = engine.previewing(soundId) ? previewFlag : null;
+    for (const b of list.querySelectorAll('.fg-row')) {
+      const btn = b.querySelector('.fg-play');
+      const want = b.dataset.flag === on ? 'stop' : 'play';
+      if (btn && btn.dataset.icon !== want) { btn.dataset.icon = want; setIcon(btn.querySelector('svg'), want); }
+    }
+  }
+  const offAudio = bus.on('audio', syncPlay);
   list.addEventListener('focusout', () => requestAnimationFrame(() => { if (stale && !list.contains(document.activeElement)) render(); }));
   const off = bus.on('library:sound', (s) => {
     if (s.id !== soundId) return;
@@ -207,7 +236,7 @@ export function openFlags(soundId, { voice = null } = {}) {
   const d = openDialog({
     title: `Flags: ${s0.name}`, body, className: 'fg-dialog', initialFocus: '.fg-addtime',
     actions: [{ label: 'Done', kind: 'primary' }],
-    onClose: () => { off(); ro.disconnect(); },
+    onClose: () => { off(); offAudio(); ro.disconnect(); if (engine.previewing(soundId)) engine.stopPreview(); },
   });
   ro.observe(wave);
   return d;
