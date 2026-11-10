@@ -6,7 +6,8 @@ import { bus } from '../core/bus.js';
 import { engine } from '../audio/engine.js';
 import { library, KIND_LABEL } from '../core/library.js';
 import { toast, promptDialog, showMenu, openDialog } from '../core/ui.js';
-import { fmtTime, parseTime } from '../core/util.js';
+import { fmtTime, parseTime, clamp } from '../core/util.js';
+import { drawBars } from '../audio/wave.js';
 import { flagVoice, flagNear, voiceTime, withFlag, withLabel, withTime, withoutFlag, saveFlags } from '../core/flags.js';
 
 const at = (t) => fmtTime(t, { tenths: true });
@@ -106,7 +107,38 @@ export function openFlags(soundId, { voice = null } = {}) {
     addTime.focus();
   }
   for (const box of [addTime, addLabel]) box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
-  addTime.addEventListener('input', () => fail(''));
+  addTime.addEventListener('input', () => { fail(''); drawMarks(); });
+
+  // The whole sound's waveform (the trimmed-off ends dimmed) with its flags marked; a click puts the new
+  // flag's time there. Marks are placed in percent, so only the bars need the canvas.
+  const wave = h('canvas', { class: 'fg-wave', 'aria-hidden': 'true' });
+  const marks = h('div', { class: 'fg-marks', 'aria-hidden': 'true' });
+  const pickMark = h('i', { class: 'fg-pick', hidden: true });
+  const waveBox = h('div', { class: 'fg-wavebox', title: 'Click to put the new flag here' }, wave, marks, pickMark);
+  let peaks = null;
+  const pct = (t) => `${(clamp(t / (dur() || 1), 0, 1) * 100).toFixed(3)}%`;
+  function drawWave() {
+    const s = library.get(soundId);
+    if (!s || !wave.isConnected || !wave.clientWidth) return;
+    drawBars(wave, peaks, { t0: 0, t1: dur() || 1, trim: library.region(s), step: 3, gap: 1 });
+  }
+  function drawMarks() {
+    const s = library.get(soundId);
+    clear(marks);
+    (s?.flags || []).forEach((f, i) => marks.append(h('span', { class: 'fg-mark', style: { left: pct(f.t) } }, h('b', null, String(i + 1)))));
+    const t = parseTime(addTime.value);
+    pickMark.hidden = t == null || t > dur();
+    if (!pickMark.hidden) pickMark.style.left = pct(t);
+  }
+  waveBox.addEventListener('click', (e) => {
+    const r = waveBox.getBoundingClientRect();
+    addTime.value = at(clamp((e.clientX - r.left) / r.width, 0, 1) * dur());
+    fail('');
+    drawMarks();
+    addLabel.focus();
+  });
+  const ro = new ResizeObserver(() => drawWave());
+  library.peaks(soundId).then((p) => { peaks = p; drawWave(); }).catch(() => { /* drawn flat */ });
 
   // The rows follow changes made elsewhere (a flag dropped with Alt+Shift+F while this is open), but are
   // never rebuilt under the typing: they catch up when the focus leaves the list.
@@ -119,8 +151,9 @@ export function openFlags(soundId, { voice = null } = {}) {
     stale = false;
     count.textContent = flags.length ? `${flags.length} ${flags.length === 1 ? 'flag' : 'flags'}` : '';
     clear(list);
-    if (!flags.length) list.append(h('p', { class: 'meta fg-none' }, 'No flags yet. Type a time below and press Add flag, or drop one while it plays.'));
+    if (!flags.length) list.append(h('p', { class: 'meta fg-none' }, 'No flags yet. Click the waveform or type a time below and press Add flag, or drop one while it plays.'));
     flags.forEach((f, i) => list.append(row(f, i)));
+    drawMarks();
   }
   function row(f, i) {
     const label = h('input', { class: 'input input-sm fg-label', value: f.label, maxlength: 60, 'aria-label': `Flag ${i + 1} name` });
@@ -151,7 +184,9 @@ export function openFlags(soundId, { voice = null } = {}) {
   }
   list.addEventListener('focusout', () => requestAnimationFrame(() => { if (stale && !list.contains(document.activeElement)) render(); }));
   const off = bus.on('library:sound', (s) => {
-    if (s.id !== soundId || JSON.stringify(s.flags || []) === shown) return;
+    if (s.id !== soundId) return;
+    drawMarks();
+    if (JSON.stringify(s.flags || []) === shown) return;
     if (list.contains(document.activeElement)) { stale = true; return; }
     render();
   });
@@ -161,6 +196,7 @@ export function openFlags(soundId, { voice = null } = {}) {
     h('div', { class: 'fg-head' },
       h('span', { class: 'meta' }, [KIND_LABEL[s0.kind], at(s0.duration), trimmed ? `plays ${at(from)} to ${at(to)}` : null].filter(Boolean).join(' · ')),
       count),
+    waveBox,
     list,
     h('div', { class: 'fg-add' },
       h('span', { class: 'fg-addcap meta' }, 'New flag'),
@@ -168,11 +204,13 @@ export function openFlags(soundId, { voice = null } = {}) {
       h('button', { class: 'btn btn-sm', type: 'button', onclick: add }, icon('flag-add', 'icon-sm'), 'Add flag')),
     addErr);
   render();
-  return openDialog({
+  const d = openDialog({
     title: `Flags: ${s0.name}`, body, className: 'fg-dialog', initialFocus: '.fg-addtime',
     actions: [{ label: 'Done', kind: 'primary' }],
-    onClose: () => off(),
+    onClose: () => { off(); ro.disconnect(); },
   });
+  ro.observe(wave);
+  return d;
 }
 
 /** Drop a flag on a playing voice (the deck's track unless told) where it is now. */
