@@ -14,7 +14,7 @@ import { engine, SPEED_MIN, SPEED_MAX } from '../audio/engine.js';
 import { playlists, REPEAT } from '../audio/playlists.js';
 import { board } from '../audio/board.js';
 import { drawBars, themeColors, timeToX } from '../audio/wave.js';
-import { dropFlag } from '../dialogs/flags.js';
+import { dropFlag, flagMenu } from '../dialogs/flags.js';
 
 export default function createConsole({ el, id, getState, setState }) {
   const root = h('div', { class: 'cn' });
@@ -293,7 +293,11 @@ export default function createConsole({ el, id, getState, setState }) {
       return;
     }
     flags.forEach((f, i) => {
-      flagList.append(h('button', { class: 'cn-flagbtn', type: 'button', role: 'listitem', title: `Jump to ${f.label}`, onclick: () => engine.jumpTo(f.t) },
+      flagList.append(h('button', {
+        class: 'cn-flagbtn', type: 'button', role: 'listitem', title: `Jump to ${f.label}. Right-click or hold to rename, move or delete it.`,
+        onclick: () => engine.jumpTo(f.t),
+        oncontextmenu: (e) => { e.preventDefault(); flagMenu({ x: e.clientX, y: e.clientY }, f); },
+      },
         i < 9 ? kbd(keys.combo(`flag.${i + 1}`)) : null,
         h('span', { class: 'truncate' }, f.label),
         h('span', { class: 'time faint' }, fmtTime(f.t))));
