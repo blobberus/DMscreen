@@ -174,6 +174,8 @@ export default function createYouTube({ el, getState, setState, workspace }) {
     const useBtn = (target) => h('button', { class: 'btn btn-sm', type: 'button', disabled: !chosen.id, title: "Set to where the player is now", onclick: () => { target.value = fmtTime(playerTime, { tenths: true }); } }, icon('clock'), 'Player time');
     const status = h('div', { class: 'yt-status' });
     const err = h('p', { class: 'field-error', hidden: true });
+    // a video's chapters (when it has any) become the sound's flags; untick to leave them out
+    const chapters = h('input', { type: 'checkbox', checked: true });
     const dl = h('button', { class: 'btn btn-primary', type: 'button', onclick: async () => {
       err.hidden = true;
       const start = from.value.trim() ? parseTime(from.value) : null;
@@ -181,7 +183,7 @@ export default function createYouTube({ el, getState, setState, workspace }) {
       if ((from.value.trim() && start == null) || (to.value.trim() && end == null)) { err.textContent = 'Write times like 1:30 or 1:02:45.'; err.hidden = false; return; }
       if (start != null && end != null && end <= start) { err.textContent = 'The end has to come after the start.'; err.hidden = false; return; }
       try {
-        const job = await library.download({ url: chosen.url, name: name.value.trim() || chosen.title, kind, start, end });
+        const job = await library.download({ url: chosen.url, name: name.value.trim() || chosen.title, kind, start, end, chapters: chapters.checked });
         jobId = job.id;
         renderStatus();
       } catch (e) { err.textContent = e.message; err.hidden = false; }
@@ -197,6 +199,8 @@ export default function createYouTube({ el, getState, setState, workspace }) {
       h('div', { class: 'field' },
         h('span', { class: 'field-label', title: 'Leave both empty for the whole thing. Play the video, then press Player time to mark each end.' }, 'Only part of it (optional)'),
         h('div', { class: 'yt-range' }, h('span', { class: 'muted' }, 'From'), from, useBtn(from), h('span', { class: 'muted' }, 'to'), to, useBtn(to))),
+      h('label', { class: 'switch yt-chapters', title: 'If the video has chapters, each becomes a flag on the sound (only those in the part downloaded)' },
+        chapters, h('span', null, 'Flags from its chapters')),
       err,
       h('div', { class: 'yt-actions' }, dl, status)));
     renderStatus();
