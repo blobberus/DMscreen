@@ -240,7 +240,8 @@
      "Y": {
       "sound": "Effects/fx/Wolf_howl_sound_effect_night_wolf_sound_no_copyright_free.mp3",
       "mode": "once",
-      "volume": 1
+      "volume": 1,
+      "label": "Wolf"
      }
     },
     "seen": [
