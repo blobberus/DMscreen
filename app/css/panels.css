@@ -28,6 +28,8 @@
 }
 .cn-flag::after { content: ""; position: absolute; left: -1px; top: 20px; width: 1px; height: var(--drop, 4px); background: var(--accent); pointer-events: none; }
 .cn-flag:hover { background: var(--raised); }
+.cn-flag { touch-action: pan-y; cursor: grab; }
+.cn-flag.is-dragging { cursor: grabbing; background: var(--raised); z-index: 1; }
 .cn-wavebox { position: relative; height: 64px; }
 .cn-wave { width: 100%; height: 100%; cursor: pointer; }
 .cn-playhead { position: absolute; top: -4px; bottom: -4px; left: 0; width: 1px; background: var(--text); pointer-events: none; will-change: transform; }

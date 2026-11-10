@@ -35,16 +35,22 @@ export function deleteFlag(soundId, flagId) {
   });
 }
 
+/** Move a flag to t (seconds into the file); refused, with a toast, onto another flag (within `within`,
+ *  LIVE_NEAR for a drag: a hand can't land 0.05 s from a flag on purpose). -> moved? */
+export function moveFlag(soundId, flagId, t, { quiet = false, within } = {}) {
+  const s = library.get(soundId);
+  const f = flagOf(soundId, flagId);
+  if (!f) return false;
+  const clash = flagNear(s.flags.filter((x) => x.id !== flagId), t, within);
+  if (clash) { toast(`${clash.label} is already there.`); return false; }
+  saveFlags(s.id, withTime(s.flags, flagId, t));
+  if (!quiet) toast(`${f.label} moved to ${at(t)}.`, { type: 'ok' });
+  return true;
+}
+
 /** Move a flag to where a playing voice of its sound is now. */
 export function moveFlagTo(voice, flagId) {
-  const s = library.get(voice.sound.id);
-  const f = flagOf(voice.sound.id, flagId);
-  if (!f) return;
-  const t = voiceTime(voice);
-  const clash = flagNear(s.flags.filter((x) => x.id !== flagId), t);
-  if (clash) { toast(`${clash.label} is already there.`); return; }
-  saveFlags(s.id, withTime(s.flags, flagId, t));
-  toast(`${f.label} moved to ${at(t)}.`, { type: 'ok' });
+  return moveFlag(voice.sound.id, flagId, voiceTime(voice));
 }
 
 /** The menu for one flag of a playing voice (the deck's track unless told). */

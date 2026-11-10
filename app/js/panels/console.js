@@ -15,7 +15,8 @@ import { engine, SPEED_MIN, SPEED_MAX } from '../audio/engine.js';
 import { playlists, REPEAT } from '../audio/playlists.js';
 import { board } from '../audio/board.js';
 import { drawBars, themeColors, timeToX } from '../audio/wave.js';
-import { dropFlag, flagMenu, openFlags, soundFlagsMenu } from '../dialogs/flags.js';
+import { dropFlag, flagMenu, openFlags, soundFlagsMenu, moveFlag } from '../dialogs/flags.js';
+import { LIVE_NEAR } from '../core/flags.js';
 
 export default function createConsole({ el, id, getState, setState }) {
   const root = h('div', { class: 'cn' });
@@ -202,9 +203,10 @@ export default function createConsole({ el, id, getState, setState }) {
       const row = x - rows[0] > 8 ? 0 : x - rows[1] > 8 ? 1 : 0;
       rows[row] = x + approx;
       const btn = h('button', {
-        class: 'cn-flag', type: 'button', style: { left: `${x}px`, top: `${row * 22}px` }, 'data-row': row, title: `Jump to ${f.label} (${fmtTime(f.t)}). Right-click or hold for more.`,
+        class: 'cn-flag', type: 'button', style: { left: `${x}px`, top: `${row * 22}px` }, 'data-row': row, title: `Jump to ${f.label} (${fmtTime(f.t)}). Drag it sideways to move it; right-click or hold for more.`,
         onclick: () => engine.jumpTo(f.t),
         oncontextmenu: (e) => { e.preventDefault(); flagMenu({ x: e.clientX, y: e.clientY }, f); },
+        onpointerdown: (e) => dragFlag(e, f, label),
       }, h('span', { class: 'truncate' }, label));
       flagLayer.append(btn);
     }
@@ -214,6 +216,43 @@ export default function createConsole({ el, id, getState, setState }) {
     strip.style.paddingTop = `${!flagLayer.children.length ? 4 : two ? 46 : 24}px`;
     // each label's leader drops to the top of the waveform, where the canvas draws the rest of the line
     for (const b of flagLayer.children) b.style.setProperty('--drop', `${(two ? 46 : 24) - 20 - Number(b.dataset.row) * 22}px`);
+  }
+  // Drag a mark sideways to move its flag (it shows the time as it goes); a press that doesn't move is a
+  // click and jumps there. A finger can still scroll the Console up and down from a mark (pan-y).
+  function dragFlag(e, f, label) {
+    const v = engine.music.voice;
+    if (!v || e.button !== 0) return;
+    const btn = e.currentTarget;
+    const text = btn.querySelector('.truncate');
+    const x0 = e.clientX;
+    const left0 = parseFloat(btn.style.left) || 0;
+    const w = strip.clientWidth || 1;
+    let t = f.t;
+    let moved = false;
+    // captured at once: a quick flick leaves the small mark before the first move would have caught it
+    try { btn.setPointerCapture(e.pointerId); } catch { /* moves still arrive while over the mark */ }
+    const move = (ev) => {
+      const dx = ev.clientX - x0;
+      if (!moved && Math.abs(dx) < 5) return;
+      if (!moved) { moved = true; btn.classList.add('is-dragging'); }
+      const x = clamp(left0 + dx, 0, w);
+      t = v.from + (x / w) * (v.to - v.from);
+      btn.style.left = `${x}px`;
+      text.textContent = `${label} · ${fmtTime(t, { tenths: true })}`;
+    };
+    const end = (ev) => {
+      btn.removeEventListener('pointermove', move);
+      btn.removeEventListener('pointerup', end);
+      btn.removeEventListener('pointercancel', end);
+      btn.classList.remove('is-dragging');
+      if (!moved) return;
+      // the click that follows the drag is not a jump
+      btn.addEventListener('click', (c) => { c.preventDefault(); c.stopImmediatePropagation(); }, { capture: true, once: true });
+      if (ev.type === 'pointercancel' || !moveFlag(v.sound.id, f.id, t, { quiet: true, within: LIVE_NEAR })) { flagsKey = ''; render(); }
+    };
+    btn.addEventListener('pointermove', move);
+    btn.addEventListener('pointerup', end);
+    btn.addEventListener('pointercancel', end);
   }
   canvas.addEventListener('click', (e) => {
     const v = engine.music.voice;
