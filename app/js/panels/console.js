@@ -14,6 +14,7 @@ import { engine, SPEED_MIN, SPEED_MAX } from '../audio/engine.js';
 import { playlists, REPEAT } from '../audio/playlists.js';
 import { board } from '../audio/board.js';
 import { drawBars, themeColors, timeToX } from '../audio/wave.js';
+import { dropFlag } from '../dialogs/flags.js';
 
 export default function createConsole({ el, id, getState, setState }) {
   const root = h('div', { class: 'cn' });
@@ -43,6 +44,7 @@ export default function createConsole({ el, id, getState, setState }) {
       tbtn('next', 'Next track', 'music.next', () => engine.next()),
       h('span', { class: 'cn-tsep' }),
       tbtn('flag-prev', 'Back to the previous flag', 'flag.prev', () => engine.prevFlag()),
+      tbtn('flag-add', 'Drop a flag here, where the track is now', 'flag.add', () => dropFlag()),
       tbtn('flag-next', 'Skip to the next flag', 'flag.next', () => engine.nextFlag()),
       h('span', { class: 'cn-tsep' }),
       shuffleBtn, repeatBtn),
