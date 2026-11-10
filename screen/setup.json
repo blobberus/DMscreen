@@ -236,6 +236,11 @@
       "sound": "Effects/fx/Thunder.mp3",
       "mode": "once",
       "volume": 1
+     },
+     "Y": {
+      "sound": "Effects/fx/Wolf_howl_sound_effect_night_wolf_sound_no_copyright_free.mp3",
+      "mode": "once",
+      "volume": 1
      }
     },
     "seen": [
@@ -243,7 +248,8 @@
      "Effects/fx/Crow.mp3",
      "Effects/fx/Rock Rolling.mp3",
      "Effects/fx/Shifting Stones.mp3",
-     "Effects/fx/Thunder.mp3"
+     "Effects/fx/Thunder.mp3",
+     "Effects/fx/Wolf_howl_sound_effect_night_wolf_sound_no_copyright_free.mp3"
     ],
     "name": "fx"
    },
