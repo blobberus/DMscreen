@@ -8,7 +8,7 @@ import { library, KIND_LABEL } from '../core/library.js';
 import { toast, promptDialog, showMenu, openDialog } from '../core/ui.js';
 import { fmtTime, parseTime, clamp } from '../core/util.js';
 import { drawBars } from '../audio/wave.js';
-import { flagVoice, flagNear, voiceTime, withFlag, withLabel, withTime, withoutFlag, saveFlags, parseFlagList } from '../core/flags.js';
+import { flagVoice, flagNear, voiceTime, withFlag, withLabel, withTime, withoutFlag, saveFlags, parseFlagList, flagListText } from '../core/flags.js';
 
 const at = (t) => fmtTime(t, { tenths: true });
 const flagOf = (soundId, flagId) => library.get(soundId)?.flags?.find((x) => x.id === flagId) || null;
@@ -115,6 +115,22 @@ export function pasteFlags(soundId, { onClose = null } = {}) {
     ],
     onClose: () => onClose?.(),
   });
+}
+
+/** Copy a sound's flags as text; where the clipboard is refused, show the text to copy by hand. */
+export async function copyFlags(soundId) {
+  const s = library.get(soundId);
+  const flags = s?.flags || [];
+  if (!flags.length) { toast(`${s?.name || 'This sound'} has no flags to copy yet.`); return; }
+  const text = flagListText(flags, at);
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(`Copied ${flags.length} ${flags.length === 1 ? 'flag' : 'flags'} of ${s.name}.`, { type: 'ok' });
+  } catch {
+    const area = h('textarea', { class: 'textarea fg-paste', rows: Math.min(12, flags.length + 1), readonly: true, 'aria-label': 'The flags as text' }, text);
+    openDialog({ title: `Flags of ${s.name} as text`, body: h('div', { class: 'stack' }, h('p', { class: 'muted' }, 'Select it and copy.'), area), actions: [{ label: 'Done', kind: 'primary' }], initialFocus: '.fg-paste' });
+    requestAnimationFrame(() => area.select());
+  }
 }
 
 // ---- the Flags dialog: every flag of one sound ------------------------------------------------
@@ -321,6 +337,11 @@ export function openFlags(soundId, { voice = null, onClose = null } = {}) {
     if (list.contains(document.activeElement)) { stale = true; return; }
     render();
   });
+  // the flags as "m:ss.t Name" lines, for notes or to paste onto another sound
+  const copyBtn = h('button', {
+    class: 'btn btn-sm fg-copybtn', type: 'button', title: 'Copy the flags as text, one "time name" per line',
+    onclick: () => copyFlags(soundId),
+  }, icon('copy', 'icon-sm'), 'Copy as text');
   const [from, to] = library.region(s0);
   const trimmed = from > 0.01 || to < (s0.duration || 0) - 0.01;
   const body = h('div', { class: 'fg' },
@@ -335,7 +356,8 @@ export function openFlags(soundId, { voice = null, onClose = null } = {}) {
       h('button', { class: 'btn btn-sm', type: 'button', onclick: add }, icon('flag-add', 'icon-sm'), 'Add flag')),
     addErr,
     h('div', { class: 'fg-tools' },
-      h('button', { class: 'btn btn-sm fg-pastebtn', type: 'button', title: 'Add many flags from a list of times, like a video’s chapters', onclick: () => pasteFlags(soundId) }, icon('playlist', 'icon-sm'), 'Paste a list of times…')));
+      h('button', { class: 'btn btn-sm fg-pastebtn', type: 'button', title: 'Add many flags from a list of times, like a video’s chapters', onclick: () => pasteFlags(soundId) }, icon('playlist', 'icon-sm'), 'Paste a list of times…'),
+      copyBtn));
   render();
   const d = openDialog({
     title: `Flags: ${s0.name}`, body, className: 'fg-dialog', initialFocus: '.fg-addtime',
